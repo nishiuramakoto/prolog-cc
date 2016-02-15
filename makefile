@@ -6,10 +6,28 @@ tests:
 shell:
 	ghci -isrc -iprolog-graph -outputdir dist/build Prolog GraphViz Quote IsString -XOverloadedStrings -XQuasiQuotes
 
-bench:
+bench8:
 	( cd bench; \
 	  ghc -i../src -O --make Bench -main-is Bench -o runbench && \
 	  time -p ./runbench 8 \
+	)
+
+bench7:
+	( cd bench; \
+	  ghc -i../src -O --make Bench -main-is Bench -o runbench && \
+	  time -p ./runbench 7 \
+	)
+
+bench:
+	( cd bench; \
+	  ghc -i../src -O --make Bench -main-is Bench -o runbench && \
+	  time -p ./runbench 6 \
+	)
+
+bench2:
+	( cd bench; \
+	  ghc -i../src -O --make Bench2 -main-is Bench2 -o runbench2 && \
+	  time -p ./runbench2 \
 	)
 
 pl:

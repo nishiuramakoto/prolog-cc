@@ -26,6 +26,8 @@ cut = Cut 0
 data Clause = Clause { lhs :: Term, rhs_ :: [Goal] }
             | ClauseFn { lhs :: Term, fn :: [Term] -> [Goal] }
       deriving (Data, Typeable)
+
+rhs :: Clause -> [Term] -> [Goal]
 rhs (Clause   _ rhs) = const rhs
 rhs (ClauseFn _ fn ) = fn
 

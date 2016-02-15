@@ -27,7 +27,6 @@ unify_with_occurs_check =
  where
    occursIn t = everything (||) (mkQ False (==t))
 
-
 unify' _ Wildcard _ = return []
 unify' _ _ Wildcard = return []
 unify' _ (Var v) t  = return [(v,t)]

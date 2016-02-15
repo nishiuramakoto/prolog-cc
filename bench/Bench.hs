@@ -4,7 +4,7 @@ module Bench (main) where
 import Prolog (consult, resolve, VariableName(..), Term(..))
 import Quote (ts)
 
-import System (getArgs)
+import System.Environment (getArgs)
 import Control.DeepSeq (deepseq, NFData(rnf))
 
 instance NFData Term where

@@ -5,3 +5,5 @@ bench/runbench
 *.o
 *~
 *.swp
+*.dyn_o
+*.dyn_hi

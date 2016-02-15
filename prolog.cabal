@@ -32,4 +32,6 @@ Library
 
     template-haskell,
     th-lift >=0.5.3,
-    transformers >=0.2.2.0
+    transformers >=0.2.2.0,
+    -- My additions
+    unification-fd

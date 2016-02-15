@@ -4,11 +4,7 @@ module Prolog
    , VariableName(..), Atom, Unifier, Substitution, Program, Goal
    , unify, unify_with_occurs_check
    , apply
-   , MonadTrace(..)
-   , withTrace
-   , MonadGraphGen(..)
-   , runNoGraphT
-   , resolve, resolve_
+   , resolve
    , (+++)
    , consult, parseQuery
    , program, whitespace, comment, clause, terms, term, bottom, vname
