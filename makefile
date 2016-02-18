@@ -18,11 +18,24 @@ bench7:
 	  time -p ./runbench 7 \
 	)
 
-bench:
+bench6:
 	( cd bench; \
 	  ghc -i../src -O --make Bench -main-is Bench -o runbench && \
 	  time -p ./runbench 6 \
 	)
+
+bench5:
+	( cd bench; \
+	  ghc -i../src -O --make Bench -main-is Bench -o runbench && \
+	  time -p ./runbench 5 \
+	)
+
+bench4:
+	( cd bench; \
+	  ghc -i../src -O --make Bench -main-is Bench -o runbench && \
+	  time -p ./runbench 4 \
+	)
+bench: bench4
 
 bench2:
 	( cd bench; \
@@ -42,3 +55,5 @@ coverage:
 	hpc report coverage/runspecs
 	hpc markup coverage/runspecs --destdir=coverage --exclude=Prolog --exclude=Specs
 	rm coverage/runspecs*
+
+.PHONY : bench bench2 bench4 bench5 bench6 bench7 bench8

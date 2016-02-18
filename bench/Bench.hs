@@ -19,7 +19,10 @@ instance NFData VariableName where
 main = do
    args <- getArgs
    let n = case args of { [] -> 6; (x:_) -> read x }
-   Right p <- consult "queens.pl"
+--   Right p <- consult "queens.pl"
    putStrLn "Starting benchmark..."
-   qs <- resolve p [ts|queens($n,Qs)|]
+--   qs <- resolve p [ts| [a] |]
+--   qs <- resolve p [ts|queens($n,Qs)|]
+   Right p <- consult "test2.pl"
+   qs <- resolve p [ts|member(X,[a,b,c])|]
    putStrLn $ qs `deepseq` "Number of solutions: " ++ show (length qs)

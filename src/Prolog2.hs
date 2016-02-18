@@ -6,7 +6,7 @@ module Prolog2
    , PrologMonad
    , runPrologMonad , execPrologMonad, evalPrologMonad
    , getFreeVar
-   , resolve
+   , resolve , resolveToTerms
    )
 where
 
