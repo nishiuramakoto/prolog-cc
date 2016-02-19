@@ -68,8 +68,8 @@ executable bench
   -- ghc-options:  -fprof-auto -rtsopts -with-rtsopts="-p"
   -- ghc-options: -prof -fprof-auto -rtsopts -with-rtsopts="-p"
 
--- executable bench2
---   main-is: Bench2.hs
---   hs-source-dirs: bench
---   build-depends: base,mtl,syb, prolog , deepseq
--- --  ghc-options:  -fprof-auto -rtsopts
+executable bench2
+  main-is: Bench2.hs
+  hs-source-dirs: bench
+  build-depends: base,mtl,syb, prolog , deepseq
+--  ghc-options:  -fprof-auto -rtsopts

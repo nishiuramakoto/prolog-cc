@@ -52,11 +52,8 @@ getFreeVar2 = do
 
 builtins :: PrologMonad [Clause]
 builtins = do
-  x <-  getFreeVar
-  a <-  getFreeVar
-  b <-  getFreeVar
-  c <-  getFreeVar
-  d <-  getFreeVar
+  [x,x',x''] <-  getFreeVars 3
+  [a,b,c,d,e] <- getFreeVars 5
   (x0,y0) <- getFreeVar2
   (x1,y1) <- getFreeVar2
   (x2,y2) <- getFreeVar2
@@ -64,6 +61,9 @@ builtins = do
   (x4,y4) <- getFreeVar2
   (x5,y5) <- getFreeVar2
   return [ UClause (UTerm (TStruct "="   [x, x])) []
+         , UClause (UTerm (TStruct "\\+" [x'])) [x', cut, UTerm (TStruct "false" []) ]
+         , UClause (UTerm (TStruct "\\+" [x''])) []
+
          , UClause (UTerm (TStruct "true" [])) []
          , UClause (UTerm (TStruct "," [a,b])) [a, b]
 
@@ -135,7 +135,7 @@ resolve program goals = do
         -- lift $ getFreeVars (10 * (depth + 1))
         ------------------------  Attempt 2 --------------------------
         IntBindingState nextFreeVar varBindings  <- get
-        put (IntBindingState (nextFreeVar + 100 * depth) varBindings)
+        put (IntBindingState (nextFreeVar + 1000 * depth) varBindings)
         --
 
         usf' <- get
@@ -145,7 +145,14 @@ resolve program goals = do
         choose depth usf gs branches stack
 
       getBranches ::  IntBindingState T -> Goal -> [Goal] -> PrologDatabaseMonad [Branch]
+      getBranches  usf (UVar n) gs = do
+        nextGoal <- lift $ applyBindings (UVar n)
+        case nextGoal of
+          (UVar _) -> error "cannot instantiate variable" -- TODO eliminate this
+          _        -> getBranches usf nextGoal gs
+
       getBranches  usf nextGoal gs = do
+
         clauses  <- asks (getClauses nextGoal)
         clauses' <- lift $ freshenClauses clauses
         -- trace "nextGoal:" >> traceLn nextGoal

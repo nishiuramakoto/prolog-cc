@@ -42,7 +42,8 @@ data T a = TStruct String [a]
 
 instance Eq (UTerm T IntVar) where
   (UTerm (TStruct a ts)) == (UTerm (TStruct b ss)) = b == a && ts == ss
-
+  (UTerm (TCut n)) == (UTerm (TCut m)) = n == m
+  (UVar x) == (UVar y) = x == y
 
 instance Unifiable T where
   zipMatch (TStruct m ls) (TStruct n rs)

@@ -108,6 +108,12 @@ goals2 = do
   return [ atom "1" |<|  atom "2" ]
 
 ------------------------ Program 3 (n queens) ------------------------
+queens = struct2 "queens"
+queens3 = struct3 "queens3"
+attack = struct2 "attack"
+attack3 = struct3 "attack3"
+selectq = struct3 "selectq"
+rangeList2 = struct3 "rangeList2"
 
 program3 :: PrologMonad Program
 program3 = do
@@ -147,19 +153,14 @@ program3 = do
                                                         , rangeList2 m1 n tail ]
              ]
 
-queens = struct2 "queens"
-queens3 = struct3 "queens3"
-attack = struct2 "attack"
-attack3 = struct3 "attack3"
-selectq = struct3 "selectq"
-rangeList2 = struct3 "rangeList2"
 
-goals3 ::  PrologMonad [Goal]
-goals3 = do [qs,l,x,xs] <- getFreeVars 4
---            return [ attack3 one one (plist [two]) ]
+goals3 :: Int ->  PrologMonad [Goal]
+goals3 n = do [qs,l,x,xs] <- getFreeVars 4
+--            return [ not' (attack three (plist [one])) ]
+                           -- return [ attack3 one one (plist [two]) ]
 --            return [ rangeList2 (num 1) (num 0) qs ]
 --            return [ selectq c (plist [a,b,c,d ]) l ]
-            return [ queens (num 4) qs ]
+              return [ queens (num n) qs ]
 
 ----------------------------  Program 4 ------------------------------
 
@@ -655,16 +656,41 @@ program31 = do
        ]
   return $ p ++  q
 
+----------------------------  Program 32 Eight Queens  ----------------------------
+program32  :: Int -> PrologMonad Program
+program32 n = do
+  [others,x,y,wildcard,x1,y1,y2,y3,y4,y5,y6,y7,y8] <- getFreeVars 13
+  let boardRange = plist $ take n [one,two,three,four,num 5, num 6, num 7, num 8]
+  let templateList   = plist $ take n [one |/| y1 , two |/| y2 , three |/| y3, four |/| y4 , num 5 |/| y5 , num 6 |/| y6 , num 7 |/| y7 , num 8 |/| y8 ]
+
+  p <- program5
+  q <- sequence
+       [ clause (solution nil) []
+       , clause (solution (cons (x |/| y) others))
+         [ solution others
+         , member y boardRange
+         , noattack (x |/| y) others
+         ]
+
+       , clause (noattack wildcard nil) []
+       , clause (noattack (x |/| y) (cons (x1|/|y1) others))
+         [ y |=\=| y1
+         , y1 |-| y |=\=| x1 |-| x
+         , y1 |-| y |=\=| x  |-| x1
+         , noattack (x|/|y) others
+         ]
+       , clause (template templateList) []
+       ]
+  return $ p ++  q
+
 solution = struct "solution"
 noattack = struct2 "noattack"
 template = struct "template"
 
-goals31 :: PrologMonad [Goal]
-goals31 = do
+goals32 :: PrologMonad [Goal]
+goals32 = do
   [s] <- getFreeVars 1
   return [ template s , solution s ]
---  return [ x `is` one |+| two ]
---  return [ ge three two ]
 
 -------------------------------- main --------------------------------
 main = do
@@ -673,7 +699,7 @@ main = do
 
    putStrLn "Starting benchmark..."
 
-   let monad = (do { ps <- program31 ; gs <- goals31 ;  resolveToTerms ps gs })
+   let monad = (do { ps <- program3 ; gs <- goals3 n ;  resolveToTerms ps gs })
 
    qs <- evalPrologMonad $ monad
 

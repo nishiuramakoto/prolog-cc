@@ -66,7 +66,8 @@ resolve program goals = map cleanup <$> runReaderT (resolve' 1 [] goals []) (cre
       resolve' depth usf (Cut n:gs) stack =  resolve' depth usf gs (drop n stack)
 
       resolve' depth usf (nextGoal:gs) stack = do
-        --trace $ ("getBranches" , depth, usf , nextGoal, gs)
+        -- trace $ ("getBranches" , depth, usf , nextGoal, gs)
+        -- trace $ ("getBranches" , nextGoal,gs)
          branches <- getBranches depth usf nextGoal gs
          -- trace $ ("branches",length branches, branches)
          choose depth usf gs branches stack

@@ -16,7 +16,7 @@ instance NFData VariableName where
    rnf (VariableName i s) = rnf i `seq` rnf s
 
 
-main2 = do
+main = do
    args <- getArgs
    let n = case args of { [] -> 6; (x:_) -> read x }
    Right p <- consult "bench/queens.pl"
@@ -27,7 +27,7 @@ main2 = do
 --   qs <- resolve p [ts|member(X,[a,b,c])|]
    putStrLn $ qs `deepseq` "Number of solutions: " ++ show (length qs)
 
-main = do
+main2 = do
    args <- getArgs
    let n = case args of { [] -> 6; (x:_) -> read x }
    parseResult <- consult "bench/queens1.pl"

@@ -1,3 +1,7 @@
+BENCH=dist/build/bench/bench
+BENCH2=dist/build/bench2/bench2
+
+
 .PHONY: tests shell bench pl docs coverage
 
 tests:
@@ -35,20 +39,20 @@ bench4:
 	  ghc -i../src -O --make Bench -main-is Bench -o runbench && \
 	  time -p ./runbench 4 \
 	)
-bench: bench4
+bench:
+	cabal build && time -p $(BENCH) 6
 
 bench2:
-	( cd bench; \
-	  ghc -i../src -O --make Bench2 -main-is Bench2 -o runbench2 && \
-	  time -p ./runbench2 \
+	( cabal build &&  time -p $(BENCH2) 8 \
 	)
 
-bench2-prof:
-	( cd bench; \
-	  ghc -prof -fprof-auto -rtsopts -i../src  -O --make Bench2 -main-is Bench2 -o runbench2 && \
-	  time -p ./runbench2 +RTS -p \
+bench2-prof: prof
+	( cabal build &&  time -p $(BENCH2) 7 +RTS -p \
 	)
 
+prof:
+	cabal configure --enable-library-profiling --enable-executable-profiling --ghc-option=-prof-auto && \
+	cabal build
 
 pl:
 	ghc -isrc -outputdir dist/build -O --make Console -main-is Console -o $@
@@ -63,4 +67,4 @@ coverage:
 	hpc markup coverage/runspecs --destdir=coverage --exclude=Prolog --exclude=Specs
 	rm coverage/runspecs*
 
-.PHONY : bench bench2 bench4 bench5 bench6 bench7 bench8
+.PHONY : prof bench2-prof bench bench2 bench4 bench5 bench6 bench7 bench8

@@ -22,7 +22,6 @@ instance Show Signature where
 signature :: Term -> Signature
 signature (UTerm (TStruct name ts)) = Signature name (length ts)
 
-
 newtype Database = DB (Map Signature [Clause])
 
 hasPredicate sig (DB index) = Map.member sig index
