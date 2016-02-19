@@ -112,34 +112,37 @@ resolve program goals = do
   usf <- get
   bs  <- builtins
 
-  bindings <- runReaderT (resolve' usf goals []) (createDB (bs ++ program) ["false","fail"])
+  bindings <- runReaderT (resolve' 1 usf goals []) (createDB (bs ++ program) ["false","fail"])
   -- trace "Finished:"
   -- traceLn bindings
   return bindings
 
   where
-      resolve' ::  IntBindingState T -> [Goal] -> Stack  -> PrologDatabaseMonad  [IntBindingState T]
-      resolve' usf [] stack =  (usf:) <$> backtrack stack
+      resolve' ::  Int -> IntBindingState T -> [Goal] -> Stack  -> PrologDatabaseMonad  [IntBindingState T]
+      resolve' depth usf [] stack =  (usf:) <$> backtrack depth stack
 
-      resolve' usf (UTerm (TCut n):gs) stack =  resolve' usf gs (drop n stack)
+      resolve' depth usf (UTerm (TCut n):gs) stack =  resolve' depth usf gs (drop n stack)
 
-      resolve' usf (nextGoal:gs) stack = do
+      resolve' depth usf (nextGoal:gs) stack = do
         -- traceLn $ "==resolve'=="
         -- traceLn $  ("usf:",usf)
         -- traceLn $  ("goals:",(nextGoal:gs))
         -- traceLn $  ("stack:", stack)
 
-        let depth = length stack
-        -- trace "depth" >> traceLn (show depth)
-
         put usf
-        lift $ getFreeVars (10 * (depth + 1))
-        usf' <- get
+        ------------ - Try to set next free var: attempt1 ------------
+        -- let depth = length stack
+        -- lift $ getFreeVars (10 * (depth + 1))
+        ------------------------  Attempt 2 --------------------------
+        IntBindingState nextFreeVar varBindings  <- get
+        put (IntBindingState (nextFreeVar + 100 * depth) varBindings)
+        --
 
+        usf' <- get
         branches <- getBranches usf' nextGoal gs
         -- traceLn $  ("branches:" , show $ length branches, branches)
 
-        choose usf gs branches stack
+        choose depth usf gs branches stack
 
       getBranches ::  IntBindingState T -> Goal -> [Goal] -> PrologDatabaseMonad [Branch]
       getBranches  usf nextGoal gs = do
@@ -169,25 +172,29 @@ resolve program goals = do
                   -- traceLn $ ("unified:" , unified)
                   usf' <- get
                   gs'  <-  case nextGoal of
-                        UTerm (TStruct n ts) -> do
+                    UTerm (TStruct n ts) -> do
+                      case clause of
+                        UClause lhs rhs -> return $ rhs ++ gs
+                        UClauseFn lhs fn -> do
                           ts' <- applyBindingsAll ts
                           return $ rhs clause ts' ++ gs
-                        UTerm _              -> error "unifying nonterm  for arithmetic goal"
-                        UVar  _              -> error "unifying variable for arithmetic goal"
+                    UTerm _              -> error "unifying nonterm  for arithmetic goal"
+                    UVar  _              -> error "unifying variable for arithmetic goal"
                   let gs'' = everywhere' shiftCut gs'
                   return [(usf', gs'')]
 
-      choose :: IntBindingState T -> [Goal] -> [Branch] -> Stack -> PrologDatabaseMonad [IntBindingState T]
-      choose  _usf _gs  (_branches@[]) stack = backtrack stack
-      choose   usf  gs ((u',gs'):alts) stack = resolve' u' gs' ((usf,gs,alts) : stack)
+      choose :: Int -> IntBindingState T -> [Goal] -> [Branch] -> Stack
+             -> PrologDatabaseMonad [IntBindingState T]
+      choose  depth _usf _gs  (_branches@[]) stack = backtrack depth stack
+      choose  depth  usf  gs ((u',gs'):alts) stack = resolve' (succ depth) u' gs' ((usf,gs,alts) : stack)
 
-      backtrack ::   Stack -> PrologDatabaseMonad [ IntBindingState T ]
-      backtrack  []                  =   do
+      backtrack :: Int -> Stack -> PrologDatabaseMonad [ IntBindingState T ]
+      backtrack  _ []                  =   do
         -- traceLn "backtracking an empty stack!"
         return (fail "Goal cannot be resolved!")
-      backtrack  ((u,gs,alts):stack) =   do
+      backtrack  depth ((u,gs,alts):stack) =   do
         -- -- traceLn $ ("backtrack:" , ((u,gs,alts):stack))
-        choose  u gs alts stack
+        choose (pred depth)  u gs alts stack
 
 
 shiftCut :: T a -> T a

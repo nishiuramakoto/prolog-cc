@@ -43,6 +43,13 @@ bench2:
 	  time -p ./runbench2 \
 	)
 
+bench2-prof:
+	( cd bench; \
+	  ghc -prof -fprof-auto -rtsopts -i../src  -O --make Bench2 -main-is Bench2 -o runbench2 && \
+	  time -p ./runbench2 +RTS -p \
+	)
+
+
 pl:
 	ghc -isrc -outputdir dist/build -O --make Console -main-is Console -o $@
 

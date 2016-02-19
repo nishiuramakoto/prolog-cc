@@ -22,6 +22,7 @@ parseQuery = parse (whitespace >> terms <* eof) "(query)"
 program = many (clause <* char '.' <* whitespace)
 
 whitespace = skipMany (comment <|> skip space <?> "")
+
 comment = skip $ choice
    [ string "/*" >> (manyTill anyChar $ try $ string "*/")
    , char '%' >> (manyTill anyChar $ try $ skip newline <|> eof)
@@ -85,7 +86,9 @@ toParser (InfixOp assoc name) = Infix  (reservedOp name >> return (\t1 t2 -> Str
                                                       AssocRight -> Parsec.AssocRight)
 reservedOp = P.reservedOp $ P.makeTokenParser $ emptyDef
    { P.opStart = oneOf ";,<=>\\i*+m@"
-   , P.opLetter = oneOf "=.:<+"
+--   { P.opStart = oneOf ""
+   , P.opLetter = oneOf "=.:<>\\+"
+--   , P.opLetter = oneOf ""
    , P.reservedOpNames = operatorNames
    , P.caseSensitive = True
    }
@@ -125,4 +128,3 @@ representChar c = Struct (show (fromEnum c)) [] -- This is the classical Prolog 
 --toChar :: Term -> Maybe Char
 --toChar (Struct "char" [Struct (toEnum . read->c) []]) = Just c
 --toChar _                                              = Nothing
-

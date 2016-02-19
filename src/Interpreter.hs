@@ -31,7 +31,7 @@ builtins =
    , ClauseFn (Struct "=<"  [var "N", var "M"]) (binaryIntegerPredicate (<=))
    , ClauseFn (Struct ">="  [var "N", var "M"]) (binaryIntegerPredicate (>=))
    , ClauseFn (Struct "=:=" [var "N", var "M"]) (binaryIntegerPredicate (==))
-
+   , ClauseFn (Struct "=\\=" [var "N", var "M"]) (binaryIntegerPredicate (/=))
    ]
  where
    binaryIntegerPredicate :: (Integer -> Integer -> Bool) -> ([Term] -> [Goal])

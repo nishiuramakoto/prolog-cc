@@ -7,13 +7,14 @@ Maintainer:          bartsch@cs.uni-bonn.de
 Category:            Language
 Build-type:          Simple
 
-Cabal-version:       >=1.2
+Cabal-version:       >=1.8
 
 Library
   Exposed-modules: Language.Prolog
                    Language.Prolog.IsString
                    Language.Prolog.Quote
-  Other-modules:   Prolog
+
+                   Prolog
                    Interpreter
                    Database
                    Unifier
@@ -21,17 +22,54 @@ Library
                    Syntax
                    IsString
                    Quote
-  Hs-Source-Dirs:  src
+                   --------
+                   Prolog2
+                   Interpreter2
+                   Database2
+                   Syntax2
+                   Trace2
+                   -------
+                   Control.Monad.State.UnificationExtras
+                   Control.Monad.MaybeK
+                   Control.Monad.EitherK
+                   Control.Unification
+                   Control.Unification.STVar
+                   Control.Unification.Types
+                   Control.Unification.Ranked
+                   Control.Unification.IntVar
+                   Control.Unification.Ranked.STVar
+                   Control.Unification.Ranked.IntVar
+                   Data.Functor.Fixedpoint
+  Other-modules:
+  Hs-Source-Dirs:  src , unification-fd-0.10.0.1/src
 
   Build-depends:
-    base >=4 && <5,
-    parsec >= 3.1.1,
-    syb >= 0.3,
-    mtl >= 2.0.1.0,
-    containers >=0.4,
 
-    template-haskell,
-    th-lift >=0.5.3,
-    transformers >=0.2.2.0,
-    -- My additions
-    unification-fd
+                base >=4 && <5,
+                parsec >= 3.1.1,
+                syb >= 0.3,
+                mtl >= 2.0.1.0,
+                containers >=0.4,
+
+                template-haskell,
+                th-lift >=0.5.3,
+                transformers >=0.2.2.0,
+
+                list-extras,
+                text-icu >= 0.7.0.1,
+                text-regex-replace >= 0.1.1.1,
+                text >= 1.2.2.0,
+                logict >= 0.6.0.2
+executable bench
+  main-is: Bench.hs
+  hs-source-dirs: bench
+  build-depends: base, prolog , deepseq
+
+  -- ghc-options:  -fprof-auto -rtsopts -with-rtsopts="-p"
+  -- ghc-options: -prof -fprof-auto -rtsopts -with-rtsopts="-p"
+
+-- executable bench2
+--   main-is: Bench2.hs
+--   hs-source-dirs: bench
+--   build-depends: base,mtl,syb, prolog , deepseq
+-- --  ghc-options:  -fprof-auto -rtsopts

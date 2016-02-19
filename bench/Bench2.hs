@@ -1,5 +1,5 @@
 {-# LANGUAGE OverloadedStrings, QuasiQuotes, StandaloneDeriving , FlexibleInstances #-}
-module Bench2 (main) where
+module Main (main) where
 
 import Prolog2
 
@@ -639,7 +639,7 @@ program31 = do
        [ clause (solution nil) []
        , clause (solution (cons (x |/| y) others))
          [ solution others
-         , member y (plist [one,two,three,four])
+         , member y (plist [one,two,three,four,num 5, num 6])
          , noattack (x |/| y) others
          ]
 
@@ -650,7 +650,7 @@ program31 = do
          , y1 |-| y |=\=| x  |-| x1
          , noattack (x|/|y) others
          ]
-       , clause (template (plist [one |/| y1 , two |/| y2 , three |/| y3, four |/| y4 ])) []
+       , clause (template (plist [one |/| y1 , two |/| y2 , three |/| y3, four |/| y4 , num 5 |/| y5 , num 6 |/| y6])) []
 --       , clause (template4 (plist [one |/| y1, two |/|y2, three |/|y3, four|/|y4 ])) []
        ]
   return $ p ++  q
