@@ -13,6 +13,7 @@ module Interpreter2
    , resolveToTerms
    , PrologMonad
    , runPrologMonad , evalPrologMonad, execPrologMonad
+   , getFreeVar , getFreeVars
    )
 where
 import Control.Monad.Reader
@@ -30,36 +31,56 @@ import Syntax2
 import Database2
 import Trace2
 
-type PrologMonad a = ExceptT Failure (IntBindingT T IO) a
-type PrologDatabaseMonad a = ReaderT Database (ExceptT Failure (IntBindingT T IO)) a
+
+
+
+----------------  Optimization 1: Unroll the monad stack  ----------------
+newtype PrologMonad m a = PrologMonad { unPrologMonad :: ExceptT Failure (IntBindingT T m) a }
+                        deriving ( Functor
+                                 , Applicative
+                                 , Monad
+                                 , MonadState (IntBindingState T)
+                                 , MonadError Failure
+                                 )
+type PrologDatabaseMonad m a = ReaderT Database (PrologMonad m) a
+
+instance MonadTrans PrologMonad where
+  lift  m =  PrologMonad (lift $ lift m)
 
 instance MonadIO m => MonadIO (IntBindingT T m) where
   liftIO = lift . liftIO
 
-runPrologMonad :: PrologMonad a -> IO (Either Failure a, IntBindingState T)
-runPrologMonad = runIntBindingT . runExceptT
+runPrologMonad :: Monad m => PrologMonad m a -> m (Either Failure a, IntBindingState T)
+runPrologMonad = runIntBindingT . runExceptT . unPrologMonad
 
-evalPrologMonad :: PrologMonad a -> IO (Either Failure a)
-evalPrologMonad = evalIntBindingT . runExceptT
+evalPrologMonad :: Monad m => PrologMonad m a -> m (Either Failure a)
+evalPrologMonad = evalIntBindingT . runExceptT . unPrologMonad
 
-execPrologMonad :: PrologMonad a -> IO (IntBindingState T)
-execPrologMonad = execIntBindingT . runExceptT
+execPrologMonad :: Monad m => PrologMonad m a -> m (IntBindingState T)
+execPrologMonad = execIntBindingT . runExceptT . unPrologMonad
+---------------------- End Unrolled Monad stack ----------------------
 
-getFreeVar2 = do
-  x <- getFreeVar
-  y <- getFreeVar
-  return (x,y)
 
-builtins :: PrologMonad [Clause]
+
+
+getFreeVar :: (Applicative m, Monad m) => PrologMonad m Term
+getFreeVar = PrologMonad $ lift (UVar <$> freeVar)
+
+getFreeVars ::(Applicative m, Monad m) => Int -> PrologMonad m [Term]
+getFreeVars 0 = return []
+getFreeVars 1 = getFreeVar >>= return . return
+getFreeVars n = do x  <- getFreeVar
+                   xs <- getFreeVars (n-1)
+                   return (x:xs)
+
+
+builtins :: Monad m => PrologMonad m [Clause]
 builtins = do
   [x,x',x''] <-  getFreeVars 3
   [a,b,c,d,e] <- getFreeVars 5
-  (x0,y0) <- getFreeVar2
-  (x1,y1) <- getFreeVar2
-  (x2,y2) <- getFreeVar2
-  (x3,y3) <- getFreeVar2
-  (x4,y4) <- getFreeVar2
-  (x5,y5) <- getFreeVar2
+  [x0,x1,x2,x3,x4,x5] <- getFreeVars 6
+  [y0,y1,y2,y3,y4,y5] <- getFreeVars 6
+
   return [ UClause (UTerm (TStruct "="   [x, x])) []
          , UClause (UTerm (TStruct "\\+" [x'])) [x', cut, UTerm (TStruct "false" []) ]
          , UClause (UTerm (TStruct "\\+" [x''])) []
@@ -96,18 +117,18 @@ builtins = do
 type Stack = [(IntBindingState T, [Goal], [Branch])]
 type Branch = (IntBindingState T, [Goal])
 
-resolveToTerms ::  Program ->  [Goal] -> PrologMonad  [[Term]]
+resolveToTerms :: Monad m =>  Program ->  [Goal] -> PrologMonad m  [[Term]]
 resolveToTerms program goals = do
-  vs <- lift ((join <$> mapM (U.getFreeVars) goals) :: IntBindingT T IO [IntVar]) :: PrologMonad [IntVar]
+  vs <- PrologMonad $ lift ((join <$> mapM (U.getFreeVars) goals)) -- :: IntBindingT T IO [IntVar]) :: PrologMonad [IntVar]
   usfs <- resolve program goals
   mapM (f (map UVar vs)) usfs
     where
-      f :: [Term] -> IntBindingState T -> PrologMonad [Term]
+      f :: Monad m => [Term] -> IntBindingState T -> PrologMonad m [Term]
       f vs usf = do put usf
-                    mapM applyBindings vs
+                    PrologMonad $ mapM applyBindings vs
 
 -- Yield all unifiers that resolve <goal> using the clauses from <program>.
-resolve ::  Program ->  [Goal] -> PrologMonad  [IntBindingState T]
+resolve :: Monad m =>  Program ->  [Goal] -> PrologMonad  m [IntBindingState T]
 resolve program goals = do
   usf <- get
   bs  <- builtins
@@ -118,7 +139,9 @@ resolve program goals = do
   return bindings
 
   where
-      resolve' ::  Int -> IntBindingState T -> [Goal] -> Stack  -> PrologDatabaseMonad  [IntBindingState T]
+      resolve' ::  Monad m
+                   => Int -> IntBindingState T -> [Goal] -> Stack
+                   -> PrologDatabaseMonad m  [IntBindingState T]
       resolve' depth usf [] stack =  (usf:) <$> backtrack depth stack
 
       resolve' depth usf (UTerm (TCut n):gs) stack =  resolve' depth usf gs (drop n stack)
@@ -138,9 +161,9 @@ resolve program goals = do
 
         choose depth usf gs branches stack
 
-      getBranches ::  IntBindingState T -> Goal -> [Goal] -> PrologDatabaseMonad [Branch]
+      getBranches ::  Monad m => IntBindingState T -> Goal -> [Goal] -> PrologDatabaseMonad m [Branch]
       getBranches  usf (UVar n) gs = do
-        nextGoal <- lift $ applyBindings (UVar n)
+        nextGoal <- lift $ PrologMonad $ applyBindings (UVar n)
         case nextGoal of
           (UVar _) -> error "cannot instantiate variable" -- TODO eliminate this
           _        -> getBranches usf nextGoal gs
@@ -156,17 +179,18 @@ resolve program goals = do
         -- trace "freshenedClauses:" >>  traceLn clauses'
 
           where
-            unifyM :: Clause -> PrologMonad [Branch]
+            unifyM :: Monad m => Clause -> PrologMonad m [Branch]
             unifyM clause = do
               put usf
               -- traceLn $ "CurrentBindings:"
               -- traceLn usf
               -- traceLn $ ("unify:",nextGoal,lhs clause)
-              unified <- (Just <$> unify nextGoal (lhs clause))  `catchError` (\e -> return Nothing)
+              unified <- (Just <$> PrologMonad (unify nextGoal (lhs clause)))
+                         `catchError` (\e -> return Nothing)
               case unified of
                 Nothing -> do  -- traceLn "failed to unify:"
-                  nextGoal' <- applyBindings nextGoal
-                  lhs'      <- applyBindings (lhs clause)
+                  nextGoal' <- PrologMonad $ applyBindings nextGoal
+                  lhs'      <- PrologMonad $ applyBindings (lhs clause)
                                -- traceLn $ nextGoal'
                                -- traceLn $ lhs'
                   return []
@@ -177,7 +201,7 @@ resolve program goals = do
                       case clause of
                         UClause lhs rhs -> return $ rhs ++ gs
                         UClauseFn lhs fn -> do
-                          ts' <- applyBindingsAll ts
+                          ts' <- PrologMonad $ applyBindingsAll ts
                           return $ rhs clause ts' ++ gs
                     UTerm _              -> error "unifying nonterm  for arithmetic goal"
                     UVar  _              -> error "unifying variable for arithmetic goal"
@@ -185,12 +209,12 @@ resolve program goals = do
                   usf' <- get
                   return [(usf', gs'')]
 
-      choose :: Int -> IntBindingState T -> [Goal] -> [Branch] -> Stack
-             -> PrologDatabaseMonad [IntBindingState T]
+      choose :: Monad m => Int -> IntBindingState T -> [Goal] -> [Branch] -> Stack
+             -> PrologDatabaseMonad m [IntBindingState T]
       choose  depth _usf _gs  (_branches@[]) stack = backtrack depth stack
       choose  depth  usf  gs ((u',gs'):alts) stack = resolve' (succ depth) u' gs' ((usf,gs,alts) : stack)
 
-      backtrack :: Int -> Stack -> PrologDatabaseMonad [ IntBindingState T ]
+      backtrack :: Monad m => Int -> Stack -> PrologDatabaseMonad m [ IntBindingState T ]
       backtrack  _ []                  =   do
         -- traceLn "backtracking an empty stack!"
         return (fail "Goal cannot be resolved!")
@@ -204,9 +228,9 @@ shiftCut (TCut n) = TCut (succ n)
 shiftCut t        = t
 
 
-freshenClauses :: [Clause] -> PrologMonad [Clause]
+freshenClauses :: Monad m => [Clause] -> PrologMonad m [Clause]
 freshenClauses clauses = do
-  (UClauseList freshened) <- freshenAll (UClauseList clauses)
+  (UClauseList freshened) <- PrologMonad $ freshenAll (UClauseList clauses)
   return freshened
 
 updateNextFreeVar depth = modify (\s -> case s of

@@ -16,7 +16,6 @@ module Syntax2
    , UClauseList(..)
    , Goal, Program, Atom
    , atom, cut
-   , getFreeVar , getFreeVars
    , hierarchy
    , Operator(..), Assoc(..)
    , arguments
@@ -81,17 +80,6 @@ atom n = UTerm $ TStruct n []
 cut = (UTerm (TCut 0))
 
 
-getFreeVar :: (Applicative m, Monad m)
-              => ExceptT Failure (IntBindingT T m) Term
-getFreeVar = lift (UVar <$> freeVar)
-
-getFreeVars ::(Applicative m, Monad m)
-              => Int -> ExceptT Failure (IntBindingT T m) [Term]
-getFreeVars 0 = return []
-getFreeVars 1 = getFreeVar >>= return . return
-getFreeVars n = do x  <- getFreeVar
-                   xs <- getFreeVars (n-1)
-                   return (x:xs)
 
 foldr_pl :: ( Term -> c -> c) -> c -> Term -> c
 foldr_pl f k (UTerm (TStruct "." [h,t])) = f h (foldr_pl f k t)
