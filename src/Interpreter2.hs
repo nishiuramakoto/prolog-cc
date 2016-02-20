@@ -16,6 +16,7 @@ module Interpreter2
    , getFreeVar , getFreeVars
    )
 where
+import Control.Exception.Base
 import Control.Monad.Reader
 import Control.Monad.State
 import Control.Monad.Except
@@ -133,20 +134,29 @@ resolve program goals = do
   usf <- get
   bs  <- builtins
 
-  bindings <- runReaderT (resolve' 1 usf goals []) (createDB (bs ++ program) ["false","fail"])
+  numFreeVars <- countFreeVars (bs ++ program)
+
+  bindings <- runReaderT (resolve' 1 numFreeVars usf goals []) (createDB (bs ++ program) ["false","fail"])
   -- trace "Finished:"
   -- traceLn bindings
   return bindings
 
   where
-      resolve' ::  Monad m
+    resolve' ::  Monad m
+                 => Int -> Int -> IntBindingState T -> [Goal] -> Stack
+                 -> PrologDatabaseMonad m  [IntBindingState T]
+    resolve' depth nf usf gs stack = resolve'' depth usf gs stack
+      where
+      resolve'' ::  Monad m
                    => Int -> IntBindingState T -> [Goal] -> Stack
                    -> PrologDatabaseMonad m  [IntBindingState T]
-      resolve' depth usf [] stack =  (usf:) <$> backtrack depth stack
+      resolve'' depth usf [] stack =  do
+        assertState usf
+        (usf:) <$> backtrack depth stack
 
-      resolve' depth usf (UTerm (TCut n):gs) stack =  resolve' depth usf gs (drop n stack)
+      resolve'' depth usf (UTerm (TCut n):gs) stack =  resolve'' depth usf gs (drop n stack)
 
-      resolve' depth usf (nextGoal:gs) stack = do
+      resolve'' depth usf (nextGoal:gs) stack = do
         -- traceLn $ "==resolve'=="
         -- traceLn $  ("usf:",usf)
         -- traceLn $  ("goals:",(nextGoal:gs))
@@ -209,18 +219,18 @@ resolve program goals = do
                   usf' <- get
                   return [(usf', gs'')]
 
-      choose :: Monad m => Int -> IntBindingState T -> [Goal] -> [Branch] -> Stack
+      choose :: Monad m =>  Int -> IntBindingState T -> [Goal] -> [Branch] -> Stack
              -> PrologDatabaseMonad m [IntBindingState T]
-      choose  depth _usf _gs  (_branches@[]) stack = backtrack depth stack
-      choose  depth  usf  gs ((u',gs'):alts) stack = resolve' (succ depth) u' gs' ((usf,gs,alts) : stack)
+      choose  depth  _usf _gs  (_branches@[]) stack = backtrack depth stack
+      choose  depth   usf  gs ((u',gs'):alts) stack = resolve'' (succ depth) u' gs' ((usf,gs,alts) : stack)
 
       backtrack :: Monad m => Int -> Stack -> PrologDatabaseMonad m [ IntBindingState T ]
       backtrack  _ []                  =   do
         -- traceLn "backtracking an empty stack!"
         return (fail "Goal cannot be resolved!")
-      backtrack  depth ((u,gs,alts):stack) =   do
+      backtrack  depth  ((u,gs,alts):stack) =   do
         -- -- traceLn $ ("backtrack:" , ((u,gs,alts):stack))
-        choose (pred depth)  u gs alts stack
+        choose (pred depth)   u gs alts stack
 
 
 shiftCut :: T a -> T a
@@ -233,6 +243,18 @@ freshenClauses clauses = do
   (UClauseList freshened) <- PrologMonad $ freshenAll (UClauseList clauses)
   return freshened
 
-updateNextFreeVar depth = modify (\s -> case s of
-                                    IntBindingState nextFreeVar varBindings ->
-                                      IntBindingState (nextFreeVar + 1000 * depth) varBindings )
+countFreeVars :: Monad m => Program -> PrologMonad m Int
+countFreeVars program = maximum <$> mapM count program
+  where
+    count :: Monad m => Clause -> PrologMonad m Int
+    count (UClause   lhs rhs) = length <$> (PrologMonad $ lift $ getFreeVarsAll rhs)
+    count (UClauseFn lhs fn)  = return 2
+
+updateNextFreeVar depth  =
+  modify (\s -> case s of
+            IntBindingState nextFreeVar varBindings ->
+              IntBindingState (nextFreeVar + 4096 * depth) varBindings )
+
+assertState usf = do
+  s <- get
+  return $ assert ( s == usf)
