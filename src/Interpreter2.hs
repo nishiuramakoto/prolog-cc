@@ -151,7 +151,6 @@ resolve program goals = do
                    => Int -> IntBindingState T -> [Goal] -> Stack
                    -> PrologDatabaseMonad m  [IntBindingState T]
       resolve'' depth usf [] stack =  do
-        assertState usf
         (usf:) <$> backtrack depth stack
 
       resolve'' depth usf (UTerm (TCut n):gs) stack =  resolve'' depth usf gs (drop n stack)
@@ -254,7 +253,3 @@ updateNextFreeVar depth  =
   modify (\s -> case s of
             IntBindingState nextFreeVar varBindings ->
               IntBindingState (nextFreeVar + 4096 * depth) varBindings )
-
-assertState usf = do
-  s <- get
-  return $ assert ( s == usf)
