@@ -130,13 +130,7 @@ resolve program goals = do
         -- traceLn $  ("stack:", stack)
 
         put usf
-        ------------ - Try to set next free var: attempt1 ------------
-        -- let depth = length stack
-        -- lift $ getFreeVars (10 * (depth + 1))
-        ------------------------  Attempt 2 --------------------------
-        IntBindingState nextFreeVar varBindings  <- get
-        put (IntBindingState (nextFreeVar + 1000 * depth) varBindings)
-        --
+        updateNextFreeVar depth
 
         usf' <- get
         branches <- getBranches usf' nextGoal gs
@@ -154,12 +148,13 @@ resolve program goals = do
       getBranches  usf nextGoal gs = do
 
         clauses  <- asks (getClauses nextGoal)
-        clauses' <- lift $ freshenClauses clauses
+        lift $ do
+          clauses' <- freshenClauses clauses
+          join <$>  forM clauses' unifyM
         -- trace "nextGoal:" >> traceLn nextGoal
         -- trace "clauses:" >> traceLn clauses
         -- trace "freshenedClauses:" >>  traceLn clauses'
 
-        lift $ join <$>  forM clauses' unifyM
           where
             unifyM :: Clause -> PrologMonad [Branch]
             unifyM clause = do
@@ -170,14 +165,13 @@ resolve program goals = do
               unified <- (Just <$> unify nextGoal (lhs clause))  `catchError` (\e -> return Nothing)
               case unified of
                 Nothing -> do  -- traceLn "failed to unify:"
-                               nextGoal' <- applyBindings nextGoal
-                               lhs'      <- applyBindings (lhs clause)
+                  nextGoal' <- applyBindings nextGoal
+                  lhs'      <- applyBindings (lhs clause)
                                -- traceLn $ nextGoal'
                                -- traceLn $ lhs'
-                               return []
+                  return []
                 Just u  -> do
                   -- traceLn $ ("unified:" , unified)
-                  usf' <- get
                   gs'  <-  case nextGoal of
                     UTerm (TStruct n ts) -> do
                       case clause of
@@ -188,6 +182,7 @@ resolve program goals = do
                     UTerm _              -> error "unifying nonterm  for arithmetic goal"
                     UVar  _              -> error "unifying variable for arithmetic goal"
                   let gs'' = everywhere' shiftCut gs'
+                  usf' <- get
                   return [(usf', gs'')]
 
       choose :: Int -> IntBindingState T -> [Goal] -> [Branch] -> Stack
@@ -213,3 +208,7 @@ freshenClauses :: [Clause] -> PrologMonad [Clause]
 freshenClauses clauses = do
   (UClauseList freshened) <- freshenAll (UClauseList clauses)
   return freshened
+
+updateNextFreeVar depth = modify (\s -> case s of
+                                    IntBindingState nextFreeVar varBindings ->
+                                      IntBindingState (nextFreeVar + 1000 * depth) varBindings )

@@ -51,7 +51,7 @@ bench2-prof: prof
 	)
 
 prof:
-	cabal configure --enable-library-profiling --enable-executable-profiling --ghc-option=-prof-auto && \
+	cabal configure --enable-library-profiling --enable-executable-profiling --ghc-option=-fprof-auto && \
 	cabal build
 
 pl:
