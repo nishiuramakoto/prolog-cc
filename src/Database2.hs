@@ -9,6 +9,9 @@ where
 
 import Data.Map (Map)
 import qualified Data.Map as Map
+import Data.Text(Text)
+import qualified Data.Text as T
+
 import Control.Unification
 import Control.Unification.IntVar
 
@@ -17,7 +20,7 @@ import Syntax2
 
 data Signature = Signature Atom Int deriving (Ord, Eq)
 instance Show Signature where
-   show (Signature name arity) = name ++ "/" ++ show arity
+   show (Signature name arity) = T.unpack name ++ "/" ++ show arity
 
 signature :: Term -> Signature
 signature (UTerm (TStruct name ts)) = Signature name (length ts)

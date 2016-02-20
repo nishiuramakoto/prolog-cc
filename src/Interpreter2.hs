@@ -7,6 +7,7 @@
   , IncoherentInstances
   , ScopedTypeVariables
   , DeriveTraversable
+  , OverloadedStrings
   #-}
 module Interpreter2
    ( resolve
@@ -24,6 +25,8 @@ import Control.Monad.Identity
 import Control.Unification hiding (getFreeVars)
 import qualified Control.Unification as U
 import Control.Unification.IntVar
+import Data.Text(Text)
+import qualified Data.Text as T
 import Data.Maybe (isJust)
 import Data.Generics (everywhere, mkT)
 import Control.Applicative ((<$>),(<*>),(<$),(<*), Applicative(..), Alternative(..))
@@ -103,11 +106,11 @@ builtins = do
     binaryIntegerPredicate p _ = [ UTerm $ TStruct "false" []]
 --    binaryIntegerPredicate p _ = [ UTerm $ TStruct "true" []]
 
-    is [t, eval->Just n] = [UTerm (TStruct "=" [t, (UTerm (TStruct (show n) [])) ]) ]
+    is [t, eval->Just n] = [UTerm (TStruct "=" [t, (UTerm (TStruct (T.pack $ show n) [])) ]) ]
     is _                 = [UTerm (TStruct "false" [])]
 
     eval :: Term -> Maybe Integer
-    eval (UTerm (TStruct (reads->[(n,"")]) [])) = return n :: Maybe Integer
+    eval (UTerm (TStruct ((reads . T.unpack) ->[(n,"")]) [])) = return n :: Maybe Integer
     eval (UTerm (TStruct "+"   [t1, t2]))       = (+) <$> eval t1 <*> eval t2
     eval (UTerm (TStruct "*"   [t1, t2]))       = (*) <$> eval t1 <*> eval t2
     eval (UTerm (TStruct "-"   [t1, t2]))       = (-) <$> eval t1 <*> eval t2

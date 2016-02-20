@@ -70,7 +70,7 @@ instance MonadIO m => Trace m (IntBindingState T) where
 --  trace x = liftIO $ putStrLn $ show x
 
 instance (MonadIO m) => Trace m (UTerm T IntVar) where
-  trace x = liftIO $ putStr $ ppTerm x
+  trace x = liftIO $ T.putStr $ ppTerm x
 
 instance (MonadIO m, Trace m a) => Trace m [a] where
   trace xs = mapM_ trace xs

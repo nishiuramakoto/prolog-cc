@@ -14,9 +14,13 @@ import Control.Monad.Reader
 import Control.Monad.State
 import Control.Monad.Except
 import Control.Monad.Identity
+import Control.Applicative ((<$>),(<*>),(<$),(<*), Applicative(..), Alternative(..))
 import Data.Maybe (isJust)
 import Data.Generics (everywhere, mkT)
-import Control.Applicative ((<$>),(<*>),(<$),(<*), Applicative(..), Alternative(..))
+import Data.Text(Text)
+import qualified Data.Text as T
+
+
 
 import Interpreter2
 import Syntax2
@@ -55,7 +59,7 @@ infixr 2 `is`, |=:=|, |=\=|, |<|, |=<|, |>|,|>=|, |@<|
 infixl 3 |+|, |-|
 infixl 4 |*|, |/|
 
-num n = atom (show n)
+num n = atom (T.pack $ show n)
 one = num 1
 two = num 2
 three = num 3

@@ -6,6 +6,7 @@
            , DeriveTraversable
            , Rank2Types
            , FlexibleInstances
+           , OverloadedStrings
            #-}
 
 module Syntax2
@@ -33,9 +34,10 @@ import Control.Unification hiding (getFreeVars)
 import Control.Unification.IntVar
 import Control.Unification.Types
 import Control.Monad.Except
+import Data.Text(Text)
+import qualified Data.Text as T
 
-
-data T a = TStruct String [a]
+data T a = TStruct Text [a]
          | TCut Int
          deriving (Eq, Show, Functor,Data,Typeable , Foldable, Traversable)
 
@@ -50,7 +52,7 @@ instance Unifiable T where
     | otherwise = TStruct n <$> pairWith (\l r -> Right (l,r)) ls rs
 
 type Term    = UTerm T IntVar
-type Atom    = String
+type Atom    = Text
 type Goal    = Term
 type Program = [Clause]
 type Failure = UFailure T IntVar
@@ -91,52 +93,64 @@ nil        = UTerm $ TStruct "[]" []
 
 -- instance Show (UTerm T IntVar) where
 --   show = prettyPrint False 0
+ppTerm :: Term -> Text
 ppTerm t = prettyPrint False 0 t
 
 
+prettyPrint :: Bool -> Int -> Term -> Text
+
 prettyPrint True _ t@(UTerm (TStruct "," [_,_])) =
-   "(" ++ prettyPrint False 0 t ++  ")"
+  T.concat [ "(" , prettyPrint False 0 t ,  ")" ]
 
 prettyPrint f n (UTerm (TStruct (flip lookup operatorTable->Just (p,InfixOp assoc name)) [l,r])) =
-   parensIf (n >= p) $ prettyPrint f n_l l ++ spaced name ++ prettyPrint f n_r r
+   parensIf (n >= p) $ T.concat [ prettyPrint f n_l l , spaced name , prettyPrint f n_r r ]
      where (n_l,n_r) = case assoc of
                            AssocLeft  -> (p-1, p)
                            AssocRight -> (p, p-1)
 
 prettyPrint f n (UTerm (TStruct (flip lookup operatorTable->Just (p,PrefixOp name)) [r])) =
-   parensIf (n >= p) $ name ++ prettyPrint f (p {- Non-associative -}) r
+  parensIf (n >= p) $ T.concat [name , prettyPrint f (p {- Non-associative -}) r ]
 
 prettyPrint _ _ t@(UTerm (TStruct "." [_,_])) =
-   let (ts,rest) = g [] t in
+  let (ts,rest) = g [] t in
       --case guard (isNil rest) >> sequence (map toChar ts) of
       --   Just str -> prettyPrint str
       --   Nothing  ->
-            "[" ++ intercalate "," (map (prettyPrint True 0) ts) ++ (if isNil rest then "" else "|" ++ (prettyPrint True 0) rest) ++  "]"
+  T.concat [ "["
+           , T.intercalate "," (map (prettyPrint True 0) ts)
+           , if isNil rest then "" else T.concat [ "|" , (prettyPrint True 0) rest ]
+           ,  "]"
+           ]
    where g ts (UTerm (TStruct "." [h,t])) = g (h:ts) t
          g ts t = (reverse ts, t)
          isNil (UTerm (TStruct "[]" [])) = True
          isNil _                = False
 
 prettyPrint _ _ (UTerm (TStruct a []))  = a
-prettyPrint _ _ (UTerm (TStruct a ts))  = a ++ "(" ++ intercalate ", " (map (prettyPrint True 0) ts) ++ ")"
-prettyPrint _ _ (UVar (IntVar x))    = "X" ++ show (x - minBound)
+prettyPrint _ _ (UTerm (TStruct a ts))  = T.concat [ a
+                                                   , "("
+                                                   , T.intercalate ", " (map (prettyPrint True 0) ts)
+                                                   , ")" ]
+prettyPrint _ _ (UVar (IntVar x))    = T.concat [ "X" , T.pack $ show (x - minBound) ]
 prettyPrint _ _ ((==cut)->True)      = "!"
-prettyPrint _ _ (UTerm (TCut n))     = "!^" ++ show n
+prettyPrint _ _ (UTerm (TCut n))     = T.concat ["!^" , T.pack $ show n ]
 
 
-spaced s = let h = head s
-               l = last s
-           in spaceIf (isLetter h) ++ s ++ spaceIf (isLetter l || ',' == l)
+spaced :: Text -> Text
+spaced s = let h = T.head s
+               l = T.last s
+           in T.concat [spaceIf (isLetter h) , s , spaceIf (isLetter l || ',' == l) ]
 
+spaceIf :: Bool -> Text
 spaceIf True  = " "
 spaceIf False = ""
 
-parensIf :: Bool -> String -> String
-parensIf True  s = "(" ++ s ++")"
+parensIf :: Bool -> Text -> Text
+parensIf True  s = T.concat [ "(" , s , ")" ]
 parensIf False s = s
 
 
-operatorTable :: [(String, (Int,Operator))]
+operatorTable :: [(Text, (Int,Operator))]
 operatorTable = concat $ zipWith (map . g) [1..] $ hierarchy False
  where g p op@(InfixOp _ name) = (name,(p,op))
        g p op@(PrefixOp name)  = (name,(p,op))
@@ -166,8 +180,8 @@ instance Show t => Show (UClause t) where
    show (UClause   lhs rhs) = show $ show lhs ++ " :- " ++ intercalate ", " (map show rhs)
 
 
-data Operator = PrefixOp String
-              | InfixOp Assoc String
+data Operator = PrefixOp Text
+              | InfixOp Assoc Text
 data Assoc = AssocLeft
            | AssocRight
 

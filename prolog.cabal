@@ -63,7 +63,7 @@ Library
 executable bench
   main-is: Bench.hs
   hs-source-dirs: bench
-  build-depends: base, prolog , deepseq
+  build-depends: base, prolog , deepseq, text
 
   -- ghc-options:  -fprof-auto -rtsopts -with-rtsopts="-p"
   -- ghc-options: -prof -fprof-auto -rtsopts -with-rtsopts="-p"
@@ -71,5 +71,5 @@ executable bench
 executable bench2
   main-is: Bench2.hs
   hs-source-dirs: bench
-  build-depends: base,mtl,syb, prolog , deepseq
+  build-depends: base,mtl,syb, prolog , deepseq , text
 --  ghc-options:  -fprof-auto -rtsopts
