@@ -20,10 +20,6 @@ import Data.Generics (everywhere, mkT)
 import Data.Text(Text)
 import qualified Data.Text as T
 
-
-
-import Interpreter2
-import Syntax2
 import Trace2
 
 instance NFData (UTerm T IntVar) where
@@ -84,7 +80,7 @@ dark  = struct "dark"
 
 
 
-program1  :: PrologMonad  IO Program
+program1  :: PrologT  IO Program
 program1 = do
   z  <- getFreeVar
   z' <- getFreeVar
@@ -98,17 +94,17 @@ program1 = do
          , UClause (dark z') [brown z']
          ]
 
-goals1 :: PrologMonad IO [Goal]
+goals1 :: PrologT IO [Goal]
 goals1 = do
   x <- getFreeVar
 --  return [ big x, gray x]
   --return [ big x, dark x]
   return [ dark x,big x ]
 
-program2 :: PrologMonad IO Program
+program2 :: PrologT IO Program
 program2 = do
   return []
-goals2 :: PrologMonad IO [Goal]
+goals2 :: PrologT IO [Goal]
 goals2 = do
   return [ atom "1" |<|  atom "2" ]
 
@@ -120,7 +116,7 @@ attack3 = struct3 "attack3"
 selectq = struct3 "selectq"
 rangeList2 = struct3 "rangeList2"
 
-program3 :: PrologMonad IO Program
+program3 :: PrologT IO Program
 program3 = do
   sequence $ [ do [n,qs,ns] <- getFreeVars 3
                   clause (queens n qs)  [ rangeList2 (num 1) n ns
@@ -159,7 +155,7 @@ program3 = do
              ]
 
 
-goals3 :: Int ->  PrologMonad IO [Goal]
+goals3 :: Int ->  PrologT IO [Goal]
 goals3 n = do [qs,l,x,xs] <- getFreeVars 4
 --            return [ not' (attack three (plist [one])) ]
                            -- return [ attack3 one one (plist [two]) ]
@@ -171,9 +167,9 @@ goals3 n = do [qs,l,x,xs] <- getFreeVars 4
 
 u = struct2 "="
 
-program4 :: PrologMonad IO Program
+program4 :: PrologT IO Program
 program4 = return []
-goals4 :: PrologMonad IO [Goal]
+goals4 :: PrologT IO [Goal]
 goals4   = do
   x <- getFreeVar
 --  return [x `u` cons (atom "a") (cons (atom "b") (cons (atom "c") nil)) ]
@@ -183,14 +179,14 @@ goals4   = do
 ----------------------------  Program 5 ------------------------------
 
 member = struct2 "member"
-program5 :: PrologMonad IO Program
+program5 :: PrologT IO Program
 program5 = do
   [x,tail,head] <- getFreeVars 3
   sequence
     [ clause (member x (cons x tail)) []
     , clause (member x (cons head tail)) [member x tail]
     ]
-goals5 :: PrologMonad IO [Goal]
+goals5 :: PrologT IO [Goal]
 goals5 = do
 --  return [ member b (cons a (cons b (cons c nil))) ]
 --  return [ member d (cons a (cons b (cons c nil))) ]
@@ -200,9 +196,9 @@ goals5 = do
   where [a,b,c,d,e ] = map atom ["a","b","c" , "d" , "e"]
 ----------------------------  Program 6 ------------------------------
 
-program6 :: PrologMonad IO Program
+program6 :: PrologT IO Program
 program6 = program5
-goals6 :: PrologMonad IO [Goal]
+goals6 :: PrologT IO [Goal]
 goals6 = do
   [l,x,y,z] <- getFreeVars 4
   return [ l |=| plist[ x,y,z] ,  member a l , member b l , member c l ]
@@ -210,9 +206,9 @@ goals6 = do
       [a,b,c] = map atom ["a","b","c"]
 
 ---------------------------- - Program 7  ----------------------------
-program7 :: PrologMonad IO Program
+program7 :: PrologT IO Program
 program7 = program5
-goals7 :: PrologMonad IO [Goal]
+goals7 :: PrologT IO [Goal]
 goals7 = do
   [l,x,y,z,w] <- getFreeVars 5
   return [ l |=| plist [x,y,z,w] ,  member a l , member b l , member c l , member d l]
@@ -220,9 +216,9 @@ goals7 = do
       [a,b,c,d] = map atom ["a","b","c","d"]
 
 ---------------------------- - Program 8  ----------------------------
-program8 :: PrologMonad IO Program
+program8 :: PrologT IO Program
 program8 = program5
-goals8 :: PrologMonad IO [Goal]
+goals8 :: PrologT IO [Goal]
 goals8 = do
   [dict,sp,en] <- getFreeVars 3
   return [ dict |=| plist [ p one uno , p two dos, p three tres]
@@ -234,7 +230,7 @@ goals8 = do
 
 
 ---------------------------- - Program 9  ----------------------------
-program9 :: PrologMonad IO Program
+program9 :: PrologT IO Program
 program9 = do
   [l,l1,l2,l3,x] <- getFreeVars 5
   sequence
@@ -244,7 +240,7 @@ program9 = do
 
 conc = struct3 "conc"
 
-goals9 :: PrologMonad IO [Goal]
+goals9 :: PrologT IO [Goal]
 goals9 = do
   l <- getFreeVar
 --  return [ conc (plist [a,b,c]) (plist []) l ]
@@ -253,17 +249,17 @@ goals9 = do
   -- return [ conc (cons a (cons b (cons c nil))) (cons one (cons two (cons three nil))) l ]
 
 ----------------------------  Program 10  ----------------------------
-program10 :: PrologMonad IO Program
+program10 :: PrologT IO Program
 program10 = program9
-goals10 :: PrologMonad IO [Goal]
+goals10 :: PrologT IO [Goal]
 goals10 = do
   [l1,l2] <- getFreeVars 2
   return [ conc l1 l2 (plist [a,b,c]) ]
 
 ----------------------------  Program 10  ----------------------------
-program11 :: PrologMonad IO Program
+program11 :: PrologT IO Program
 program11 = program9
-goals11 :: PrologMonad IO [Goal]
+goals11 :: PrologT IO [Goal]
 goals11 = do
   [before,after,month1,month2,wildcard,wildcard2] <- getFreeVars 6
 --  return $ [ conc before (cons may after) (plist (map atom ["jan","feb","mar","apr","may","jun","jul","aug","sep","oct","nov","dec"] ) ) ]
@@ -272,9 +268,9 @@ goals11 = do
   where may = atom "may"
 
 ----------------------------  Program 12  ----------------------------
-program12 :: PrologMonad IO Program
+program12 :: PrologT IO Program
 program12 = program9
-goals12 :: PrologMonad IO [Goal]
+goals12 :: PrologT IO [Goal]
 goals12 = do
   [l1,l2,wildcard] <- getFreeVars 3
   return [ l1 `u` plist [a,b,z,z,c,z,z,z,d,e]
@@ -282,14 +278,14 @@ goals12 = do
     where
       z = atom "z"
 ----------------------------  Program 13  ----------------------------
-program13 :: PrologMonad IO Program
+program13 :: PrologT IO Program
 program13 = do
   [x,l,l1,l2] <- getFreeVars 4
   p <- program9
   q <- sequence [ clause (member1 x l)  [ conc l1 (cons x l2) l ] ]
   return $ p ++ q
 
-goals13 :: PrologMonad IO [Goal]
+goals13 :: PrologT IO [Goal]
 goals13 = do
   x <- getFreeVar
   return [ member1 x (plist [a,b,c,d,e]) ]
@@ -297,7 +293,7 @@ goals13 = do
 member1 = struct2 "member1"
 
 ----------------------------  Program 14  ----------------------------
-program14 :: PrologMonad IO Program
+program14 :: PrologT IO Program
 program14 = do
   [x,y,z,l,l1] <- getFreeVars 5
   p <- program9
@@ -305,7 +301,7 @@ program14 = do
       [ clause (delete3 l1 l) [ conc l1 (plist [x,y,z]) l ] ]
   return $ p ++ q
 
-goals14 :: PrologMonad IO [Goal]
+goals14 :: PrologT IO [Goal]
 goals14 = do
   [l,l1] <- getFreeVars 2
   return [ l |=| plist [a,b,c,d,e] , delete3 l1 l ]
@@ -314,7 +310,7 @@ goals14 = do
 delete3 = struct2 "delete3"
 
 ----------------------------  Program 15  ----------------------------
-program15 :: PrologMonad IO Program
+program15 :: PrologT IO Program
 program15 = do
   [x,l,l1] <- getFreeVars 3
   p <- program9
@@ -322,7 +318,7 @@ program15 = do
       [ clause (deleteLast1 l1 l) [ conc l1 (plist [x]) l ] ]
   return $ p ++ q
 
-goals15 :: PrologMonad IO [Goal]
+goals15 :: PrologT IO [Goal]
 goals15 = do
   [l,l1] <- getFreeVars 2
   return [ l |=| plist [a,b,c,d,e] , deleteLast1 l1 l ]
@@ -330,7 +326,7 @@ goals15 = do
 deleteLast1 = struct2 "deleteLast1"
 
 ----------------------------  Program 16  ----------------------------
-program16 :: PrologMonad IO Program
+program16 :: PrologT IO Program
 program16 = do
   [x,y,z,l1,l2] <- getFreeVars 5
   p <- program9
@@ -341,7 +337,7 @@ program16 = do
       ]
   return $ p ++ q
 
-goals16 :: PrologMonad IO [Goal]
+goals16 :: PrologT IO [Goal]
 goals16 = do
   [l,l1] <- getFreeVars 2
   return [ l |=| plist [a,b,c,d,e] , deleteLast2 l l1 ]
@@ -349,7 +345,7 @@ goals16 = do
 deleteLast2 = struct2 "deleteLast2"
 
 ----------------------------  Program 17  ----------------------------
-program17 :: PrologMonad IO Program
+program17 :: PrologT IO Program
 program17 = do
   [x,y,tail,tail1] <- getFreeVars 4
   q <- sequence
@@ -359,7 +355,7 @@ program17 = do
       ]
   return $ q
 
-goals17 :: PrologMonad IO [Goal]
+goals17 :: PrologT IO [Goal]
 goals17 = do
   [l,l1] <- getFreeVars 2
 --  return [ l |=| plist [a,b,c,d,e] , del c l l1 ]
@@ -368,7 +364,7 @@ goals17 = do
 del = struct3 "del"
 
 ----------------------------  Program 18  ----------------------------
-program18 :: PrologMonad IO Program
+program18 :: PrologT IO Program
 program18 = do
   [s,l,l1,l2,l3] <- getFreeVars 5
   p <- program9
@@ -378,7 +374,7 @@ program18 = do
       ]
   return $ p ++ q
 
-goals18 :: PrologMonad IO [Goal]
+goals18 :: PrologT IO [Goal]
 goals18 = do
   [s] <- getFreeVars 1
   return [ sublist s (plist [a,b,c]) ]
@@ -386,7 +382,7 @@ goals18 = do
 sublist = struct2 "sublist"
 
 ----------------------------  Program 19  ----------------------------
-program19 :: PrologMonad IO Program
+program19 :: PrologT IO Program
 program19 = do
   [x ,list, biggerList] <- getFreeVars 3
   p <- program17
@@ -395,7 +391,7 @@ program19 = do
       ]
   return $  p ++ q
 
-goals19 :: PrologMonad IO [Goal]
+goals19 :: PrologT IO [Goal]
 goals19 = do
   [s] <- getFreeVars 1
   return [ insert one (plist [a,b,c]) s ]
@@ -403,7 +399,7 @@ goals19 = do
 insert = struct3 "insert"
 
 ----------------------------  Program 20  ----------------------------
-program20 :: PrologMonad IO Program
+program20 :: PrologT IO Program
 program20 = do
   [x , l, l1, p] <- getFreeVars 4
   prog <- program19
@@ -416,7 +412,7 @@ program20 = do
       ]
   return $  prog ++ q
 
-goals20 :: PrologMonad IO [Goal]
+goals20 :: PrologT IO [Goal]
 goals20 = do
   [s] <- getFreeVars 1
   -- return [ permutation (plist [a,b,c]) s ]
@@ -425,7 +421,7 @@ goals20 = do
 permutation = struct2 "permutation"
 
 ----------------------------  Program 21  ----------------------------
-program21 :: PrologMonad IO Program
+program21 :: PrologT IO Program
 program21 = do
   [x1,x2,l] <- getFreeVars 3
   q <- sequence
@@ -436,7 +432,7 @@ program21 = do
       ]
   return $  q
 
-goals21 :: PrologMonad IO [Goal]
+goals21 :: PrologT IO [Goal]
 goals21 = do
 --  return [ evenlength (plist [a,b,c,d])  ]
   return [ oddlength (plist [a,b,c,d,e])  ]
@@ -445,7 +441,7 @@ evenlength = struct "evenlength"
 oddlength = struct "oddlength"
 
 ----------------------------  Program 22  ----------------------------
-program22 :: PrologMonad IO Program
+program22 :: PrologT IO Program
 program22 = do
   [x,l,r,r1,x1,l1,l2] <- getFreeVars 7
   q <- sequence
@@ -456,7 +452,7 @@ program22 = do
       ]
   return $  q
 
-goals22 :: PrologMonad IO [Goal]
+goals22 :: PrologT IO [Goal]
 goals22 = do
   l <- getFreeVar
   return [ reverseList (plist [a,b,c,d,e]) l  ]
@@ -465,7 +461,7 @@ reverseList = struct2 "reverse"
 insertLast  = struct3 "insertLast"
 
 ----------------------------  Program 23  ----------------------------
-program23 :: PrologMonad IO Program
+program23 :: PrologT IO Program
 program23 = do
   [x,l,r,r1,x1,l1,l2] <- getFreeVars 7
   p <- program22
@@ -476,7 +472,7 @@ program23 = do
       ]
   return $  p ++ q
 
-goals23 :: PrologMonad IO [Goal]
+goals23 :: PrologT IO [Goal]
 goals23 = do
   l <- getFreeVar
   return [ palindrome (plist [a,b,c,b,a]) ]
@@ -484,7 +480,7 @@ goals23 = do
 palindrome = struct "palindrome"
 
 ----------------------------  Program 24  ----------------------------
-program24 :: PrologMonad IO Program
+program24 :: PrologT IO Program
 program24 = do
   [x,l,r,r1,x1,l1,l2] <- getFreeVars 7
   p <- program22
@@ -494,7 +490,7 @@ program24 = do
       ]
   return $  p ++ q
 
-goals24 :: PrologMonad IO [Goal]
+goals24 :: PrologT IO [Goal]
 goals24 = do
   [l1,l2] <- getFreeVars 2
   return [ shift (plist [a,b,c,d,e]) l1 , shift l1 l2 ]
@@ -502,7 +498,7 @@ goals24 = do
 shift = struct2 "shift"
 
 ----------------------------  Program 25  ----------------------------
-program25 :: PrologMonad IO Program
+program25 :: PrologT IO Program
 program25 = do
   [x,y,l,m] <- getFreeVars 4
   p <- program22
@@ -518,7 +514,7 @@ program25 = do
       ]
   return $  p ++ q
 
-goals25 :: PrologMonad IO [Goal]
+goals25 :: PrologT IO [Goal]
 goals25 = do
   [l1,l2] <- getFreeVars 2
   return [ translate (plist [num 3,num 5,num 1,num 3]) l1 ]
@@ -527,7 +523,7 @@ translate = struct2 "translate"
 means     = struct2 "means"
 
 ----------------------------  Program 26  ----------------------------
-program26 :: PrologMonad IO Program
+program26 :: PrologT IO Program
 program26 = do
   [x,y,set,sub] <- getFreeVars 4
   p <- program22
@@ -538,7 +534,7 @@ program26 = do
       ]
   return $  p ++ q
 
-goals26 :: PrologMonad IO [Goal]
+goals26 :: PrologT IO [Goal]
 goals26 = do
   [s,l2] <- getFreeVars 2
   return [ subset (plist [a,b,c]) s ]
@@ -546,7 +542,7 @@ goals26 = do
 subset = struct2 "subset"
 
 ----------------------------  Program 27  ----------------------------
-program27 :: PrologMonad IO Program
+program27 :: PrologT IO Program
 program27 = do
   [list1,list2,list,x,y,l,m] <- getFreeVars 7
   p <- program9
@@ -564,7 +560,7 @@ program27 = do
       ]
   return $  p ++ q
 
-goals27 :: PrologMonad IO [Goal]
+goals27 :: PrologT IO [Goal]
 goals27 = do
   [s,l2] <- getFreeVars 2
   return [ devidelist (plist [a,b,c,d,e]) (plist [a,b]) l2 ]
@@ -574,7 +570,7 @@ devide = struct3 "devide"
 about_equal = struct2 "about_equal"
 
 ----------------------------  Program 28  ----------------------------
-program28 :: PrologMonad IO Program
+program28 :: PrologT IO Program
 program28 = do
   [l1,l2,list,x,y,l,m] <- getFreeVars 7
   p <- program9
@@ -584,7 +580,7 @@ program28 = do
       ]
   return $  p ++ q
 
-goals28 :: PrologMonad IO [Goal]
+goals28 :: PrologT IO [Goal]
 goals28 = do
   [s,l2] <- getFreeVars 2
   return [ equal_length (plist [a,b,c,d,e]) (plist [a,b,c,d,e]) ]
@@ -592,7 +588,7 @@ goals28 = do
 equal_length = struct2 "equal_length"
 
 ----------------------------  Program 29  ----------------------------
-program29 :: PrologMonad IO Program
+program29 :: PrologT IO Program
 program29 = do
   [flatlist,tail,l1,l2,x,y] <- getFreeVars 6
   p <- program9
@@ -603,7 +599,7 @@ program29 = do
       ]
   return $  p ++ q
 
-goals29 :: PrologMonad IO [Goal]
+goals29 :: PrologT IO [Goal]
 goals29 = do
   [s,l2] <- getFreeVars 2
   return [ flatten (plist [a,a,plist [a,plist [a,a]]]) l2 ]
@@ -613,7 +609,7 @@ flatten = struct2 "flatten"
 
 ----------------------------  Arithmetic  ----------------------------
 ----------------------------  Program 30  ----------------------------
-program30 :: PrologMonad IO Program
+program30 :: PrologT IO Program
 program30 = do
   [m,m1,n,tail,x] <- getFreeVars 5
 
@@ -629,7 +625,7 @@ program30 = do
 
 ge = struct2 "ge"
 
-goals30 :: PrologMonad IO [Goal]
+goals30 :: PrologT IO [Goal]
 goals30 = do
   [l] <- getFreeVars 1
   return [ rangeList2 one three l ]
@@ -637,7 +633,7 @@ goals30 = do
 --  return [ ge three two ]
 
 ----------------------------  Program 31 Eight Queens  ----------------------------
-program31 :: PrologMonad IO Program
+program31 :: PrologT IO Program
 program31 = do
   [others,x,y,wildcard,x1,y1,y2,y3,y4,y5,y6,y7,y8] <- getFreeVars 13
   p <- program5
@@ -662,7 +658,7 @@ program31 = do
   return $ p ++  q
 
 ----------------------------  Program 32 Eight Queens  ----------------------------
-program32  :: Int -> PrologMonad IO Program
+program32  :: Int -> PrologT IO Program
 program32 n = do
   [others,x,y,wildcard,x1,y1,y2,y3,y4,y5,y6,y7,y8] <- getFreeVars 13
   let boardRange = plist $ take n [one,two,three,four,num 5, num 6, num 7, num 8]
@@ -692,7 +688,7 @@ solution = struct "solution"
 noattack = struct2 "noattack"
 template = struct "template"
 
-goals32 :: PrologMonad IO [Goal]
+goals32 :: PrologT IO [Goal]
 goals32 = do
   [s] <- getFreeVars 1
   return [ template s , solution s ]
@@ -706,10 +702,21 @@ main = do
 
    let monad = (do { ps <- program3 ; gs <- goals3 n ;  resolveToTerms ps gs })
 
-   qs <- evalPrologMonad $ monad
+   qs <- evalPrologT $ monad
 
    case qs of
      Left  failure -> putStrLn $ "failure:" ++ show failure
      -- Right qs      -> putStrLn $ qs `deepseq` "Number of solutions: " ++ show (length qs)
      Right qs      -> do putStrLn $ "Number of solutions: " ++ show (length qs)
                          mapM_ traceLn qs
+
+-- main = do
+--    args <- getArgs
+--    let n = case args of { [] -> 6; (x:_) -> read x }
+--    Right p <- consult "bench/queens.pl"
+--    putStrLn "Starting benchmark..."
+-- --   qs <- resolve p [ts| [a] |]
+--    qs <- resolve p [ts|queens($n,Qs)|]
+-- --   Right p <- consult "test2.pl"
+-- --   qs <- resolve p [ts|member(X,[a,b,c])|]
+--    putStrLn $ qs `deepseq` "Number of solutions: " ++ show (length qs)

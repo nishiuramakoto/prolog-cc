@@ -12,6 +12,7 @@ import Control.Applicative ((<$>),(<*>),(<$),(<*))
 
 import Syntax2
 
+consult :: FilePath -> PrologMonad IO (Either ParseError Program)
 consult = fmap consultString . readFile
 
 consultString :: String -> Either ParseError Program
@@ -35,31 +36,30 @@ clause = do t <- struct <* whitespace
       normal t = do
             ts <- option [] $ do string ":-" <* whitespace
                                  terms
-            return (Clause t ts)
+            return (UClause t ts)
 
       dcg t = do
             string "-->" <* whitespace
             ts <- terms
             return (translate (t,ts))
 
-      translate ((TStruct a ts), rhs) =
+      translate ((UTerm (TStruct a ts)), rhs) =
          let lhs' = TStruct a (arguments ts (head vars) (last vars))
              vars = map (var.("d_"++).(a++).show) [0..length rhs] -- We explicitly choose otherwise invalid variable names
              rhs' = zipWith3 translate' rhs vars (tail vars)
          in Clause lhs' rhs'
 
-      translate' t s s0 | isList t   = TStruct "=" [ s, foldr_pl cons s0 t ]     -- Terminal
-      translate' t@(TStruct "{}" ts) s s0 = foldr and (TStruct "=" [ s, s0 ]) ts  -- Braced terms
-      translate' (TStruct a ts)  s s0 = TStruct a (arguments ts s s0)             -- Non-Terminal
+      translate' t s s0 | isList t   = UTerm (TStruct "=" [ s, foldr_pl cons s0 t ])     -- Terminal
+      translate' t@(UTerm (TStruct "{}" ts)) s s0 = foldr and (UTerm (TStruct "=" [ s, s0 ])) ts -- Braced terms
+      translate' (UTerm (TStruct a ts))  s s0 = UTerm (TStruct a (arguments ts s s0))    -- Non-Terminal
 
-      and x y = TStruct "," [x,y]
+      and x y = UTerm (TStruct "," [x,y])
 
 
 
-isList (TStruct "." [_,_]) = True
-isList (TStruct "[]" [])   = True
+isList (UTerm (TStruct "." [_,_])) = True
+isList (UTerm (TStruct "[]" []))   = True
 isList _                  = False
-
 
 
 terms = sepBy1 termWithoutConjunction (charWs ',')
@@ -75,11 +75,11 @@ bottom = variable
       <|> struct
       <|> list
       <|> stringLiteral
-      <|> TStruct "{}" <$> between (charWs '{') (char '}') terms
+      <|> (UTerm (TStruct "{}" <$> between (charWs '{') (char '}') terms))
       <|> between (charWs '(') (char ')') term
 
-toParser (PrefixOp name)      = Prefix (reservedOp name >> return (\t -> TStruct name [t]))
-toParser (InfixOp assoc name) = Infix  (reservedOp name >> return (\t1 t2 -> TStruct name [t1, t2]))
+toParser (PrefixOp name)      = Prefix $ reservedOp name >> return (\t -> UTerm (TStruct name [t]))
+toParser (InfixOp assoc name) = Infix  (reservedOp name >> return (\t1 t2 -> UTerm (TStruct name [t1, t2])))
                                        (case assoc of AssocLeft  -> Parsec.AssocLeft
                                                       AssocRight -> Parsec.AssocRight)
 reservedOp = P.reservedOp $ P.makeTokenParser $ emptyDef
@@ -109,7 +109,7 @@ atom = (:) <$> lower <*> many (alphaNum <|> char '_')
 
 struct = do a <- atom
             ts <- option [] $ between (charWs '(') (char ')') terms
-            return (TStruct a ts)
+            return (UTerm (TStruct a ts))
 
 list = between (charWs '[') (char ']') $
          flip (foldr cons) <$> option []  terms
@@ -118,7 +118,7 @@ list = between (charWs '[') (char ']') $
 
 stringLiteral = foldr cons nil . map representChar <$> between (char '"') (char '"') (try (many (noneOf "\"")))
 
-representChar c = TStruct (show (fromEnum c)) [] -- This is the classical Prolog representation of chars as code points.
+representChar c = (UTerm TStruct (show (fromEnum c))) [] -- This is the classical Prolog representation of chars as code points.
 --representChar c = Struct [c] [] -- This is the more natural representation as one-character atoms.
 --representChar c = Struct "char" [Struct (show (fromEnum c)) []] -- This is a representation as tagged code points.
 --toChar :: Term -> Maybe Char

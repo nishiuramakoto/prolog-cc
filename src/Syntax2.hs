@@ -10,7 +10,7 @@
            #-}
 
 module Syntax2
-   ( Term(..) , T(..)
+   ( Term(..) , T(..), UTerm(..)
    , Failure
    , Clause(..), rhs
    , UClause(..)
@@ -34,12 +34,18 @@ import Control.Unification hiding (getFreeVars)
 import Control.Unification.IntVar
 import Control.Unification.Types
 import Control.Monad.Except
+import Control.Applicative
 import Data.Text(Text)
 import qualified Data.Text as T
 
 data T a = TStruct Text [a]
-         | TCut Int
-         deriving (Eq, Show, Functor,Data,Typeable , Foldable, Traversable)
+         | TCut {-# UNPACK #-} !Int
+         deriving (Eq, Show, Functor,Data,Typeable , Foldable)
+
+-- Manually defining Traversable adds a bit to the speed
+instance Traversable T where
+  traverse f (TStruct n ts) = TStruct n <$> traverse f ts
+  traverse f (TCut n)       = pure (TCut n)
 
 instance Eq (UTerm T IntVar) where
   (UTerm (TStruct a ts)) == (UTerm (TStruct b ss)) = b == a && ts == ss
@@ -49,7 +55,7 @@ instance Eq (UTerm T IntVar) where
 instance Unifiable T where
   zipMatch (TStruct m ls) (TStruct n rs)
     | m /= n = Nothing
-    | otherwise = TStruct n <$> pairWith (\l r -> Right (l,r)) ls rs
+    | otherwise = (TStruct n <$> pairWith (\l r -> Right (l,r)) ls rs)
 
 type Term    = UTerm T IntVar
 type Atom    = Text
@@ -204,3 +210,11 @@ hierarchy ignoreConjunction =
    infixR = InfixOp AssocRight
 
 arguments ts xs ds = ts ++ [ xs, ds ]
+
+----------------------------------------------------------------
+fib :: Int -> Int
+fib 0 = 1
+fib 1 = 1
+fib n = fib (n-1) + fib (n-2)
+{-# INLINE fib #-}
+----------------------------------------------------------------

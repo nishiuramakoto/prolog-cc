@@ -1,15 +1,16 @@
 module Prolog2
-   ( Term(..), T(..) , atom
+   ( Term(..), T(..) , atom, cons,nil
    , Clause(..), rhs
    , UClause(..)
    , Atom,  Program, Goal
-   , PrologMonad
-   , runPrologMonad , execPrologMonad, evalPrologMonad
-   , getFreeVar
+   , PrologT
+   , runPrologT , execPrologT, evalPrologT
+   , getFreeVar, getFreeVars
    , resolve , resolveToTerms
    )
 where
 
-import Syntax2
 -- import Parser2
+-- import Quote2
 import Interpreter2
+import Syntax2
