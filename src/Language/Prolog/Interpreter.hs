@@ -1,5 +1,5 @@
 {-# LANGUAGE ViewPatterns, GeneralizedNewtypeDeriving, FlexibleInstances, FlexibleContexts, UndecidableInstances, IncoherentInstances , ScopedTypeVariables #-}
-module Interpreter
+module Language.Prolog.Interpreter
    ( resolve
    )
 where
@@ -11,9 +11,9 @@ import Data.Generics (everywhere, mkT)
 import Control.Applicative ((<$>),(<*>),(<$),(<*), Applicative(..), Alternative(..))
 import Data.List (sort, nub)
 
-import Syntax
-import Unifier
-import Database
+import Language.Prolog.Syntax
+import Language.Prolog.Unifier
+import Language.Prolog.Database
 
 
 builtins :: [Clause]

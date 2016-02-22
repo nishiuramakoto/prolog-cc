@@ -9,9 +9,8 @@
   , OverloadedStrings
   #-}
 
-module Trace2 where
+module Language.Prolog2.Trace where
 -- require icu libraries
-
 
 import Control.Monad.Reader
 import Control.Monad.State
@@ -25,7 +24,7 @@ import Data.Text(Text)
 import qualified Data.Text as T
 import qualified Data.Text.IO as T
 import Data.Maybe (isJust)
-import Syntax2
+import Language.Prolog2.Syntax
 
 class MonadIO m => Trace m a where
   trace    :: a -> m ()

@@ -1,4 +1,4 @@
-module Parser
+module Language.Prolog.Parser
    ( consult, parseQuery
    , program, whitespace, comment, clause, terms, term, bottom, vname
    ) where
@@ -10,7 +10,7 @@ import qualified Text.Parsec.Token as P
 import Text.Parsec.Language (emptyDef)
 import Control.Applicative ((<$>),(<*>),(<$),(<*))
 
-import Syntax
+import Language.Prolog.Syntax
 
 consult = fmap consultString . readFile
 

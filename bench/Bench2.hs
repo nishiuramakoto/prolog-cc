@@ -1,7 +1,7 @@
 {-# LANGUAGE OverloadedStrings, QuasiQuotes, StandaloneDeriving , FlexibleInstances #-}
 module Main (main) where
 
-import Prolog2 hiding (clause)
+import Language.Prolog2 hiding (clause)
 
 import System.Environment (getArgs)
 import Control.DeepSeq (deepseq, NFData(rnf))
@@ -21,7 +21,7 @@ import Data.Text(Text)
 import qualified Data.Text as T
 import qualified Data.Text.IO as T
 
-import Trace2
+import Language.Prolog2.Trace
 -- import Quote2
 
 instance NFData (UTerm T IntVar) where

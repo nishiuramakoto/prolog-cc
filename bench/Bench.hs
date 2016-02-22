@@ -1,8 +1,8 @@
 {-# LANGUAGE OverloadedStrings, QuasiQuotes, StandaloneDeriving #-}
 module Main (main) where
 
-import Prolog (consult, resolve, VariableName(..), Term(..))
-import Quote (ts)
+import Language.Prolog (consult, resolve, VariableName(..), Term(..))
+import Language.Prolog.Quote (ts)
 
 import System.Environment (getArgs)
 import Control.DeepSeq (deepseq, NFData(rnf))

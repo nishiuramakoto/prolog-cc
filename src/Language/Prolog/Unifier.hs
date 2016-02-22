@@ -1,4 +1,4 @@
-module Unifier
+module Language.Prolog.Unifier
    ( Unifier, Substitution
    , unify, unify_with_occurs_check
    , apply, (+++)
@@ -10,7 +10,7 @@ import Control.Arrow (second)
 import Data.Function (fix)
 import Data.Generics (everything, mkQ)
 
-import Syntax
+import Language.Prolog.Syntax
 
 type Unifier      = [Substitution]
 type Substitution = (VariableName, Term)

@@ -1,5 +1,5 @@
 {-# LANGUAGE TemplateHaskell, FlexibleInstances #-}
-module Quote (t,ts,c,pl) where
+module Language.Prolog2.Quote (t,ts,c,pl) where
 
 import Control.Applicative ((<*))
 import Data.Functor.Identity (Identity)
@@ -11,11 +11,11 @@ import Language.Haskell.TH.Quote (QuasiQuoter(..))
 import Text.Parsec (parse, eof, ParsecT)
 import Data.Generics (extQ, typeOf, Data)
 
-import Prolog ( Term(..), VariableName, Clause(..), Goal
-              , term, terms, clause, program, whitespace
+import Language.Prolog2 ( Term(..), Clause(..), Goal
+               , term, terms, clause, program, whitespace
               )
 
-$(deriveLiftMany [''Term, ''VariableName, ''Clause])
+$(deriveLiftMany [''Term,  ''Clause])
 
 instance Lift ([Term] -> [Goal]) where
    lift _ = fail "Clauses using Haskell functions can't be lifted."

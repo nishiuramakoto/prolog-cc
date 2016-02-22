@@ -11,24 +11,20 @@ Cabal-version:       >=1.8
 
 Library
   Exposed-modules: Language.Prolog
+                   Language.Prolog.Interpreter
+                   Language.Prolog.Database
+                   Language.Prolog.Unifier
+                   Language.Prolog.Parser
+                   Language.Prolog.Syntax
                    Language.Prolog.IsString
                    Language.Prolog.Quote
-
-                   Prolog
-                   Interpreter
-                   Database
-                   Unifier
-                   Parser
-                   Syntax
-                   IsString
-                   Quote
                    --------
-                   Prolog2
-                   Interpreter2
-                   Database2
-                   Syntax2
-                   Trace2
-                   Parser2
+                   Language.Prolog2
+                   Language.Prolog2.Interpreter
+                   Language.Prolog2.Database
+                   Language.Prolog2.Syntax
+                   Language.Prolog2.Trace
+                   Language.Prolog2.Parser
                    -------
                    Control.Monad.State.UnificationExtras
                    Control.Monad.MaybeK

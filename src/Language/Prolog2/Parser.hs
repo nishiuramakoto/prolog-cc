@@ -4,7 +4,7 @@
   #-}
 
 
-module Parser2
+module Language.Prolog2.Parser
    ( Parser(..) , consult, consultString , parseQuery
    , program, whitespace, comment, clause, terms, term, bottom, vname
    ) where
@@ -28,8 +28,9 @@ import qualified Data.Set as Set
 import System.Directory
 
 
-import Syntax2 hiding (atom)
-import Interpreter2
+import Language.Prolog2.Syntax hiding (atom)
+import qualified Language.Prolog2.Syntax as Prolog
+import Language.Prolog2.Interpreter
 
 
 type Parser m a = ParsecT String ParserState (PrologT m) a
@@ -125,7 +126,7 @@ bottom = variable
       <|> ((UTerm . TStruct (T.pack "{}"))  <$> between (charWs '{') (char '}') terms)
       <|> between (charWs '(') (char ')') term
 
-toParser :: Monad m => Syntax2.Operator -> Parsec.Operator String ParserState (PrologT m) Term
+toParser :: Monad m => Prolog.Operator -> Parsec.Operator String ParserState (PrologT m) Term
 toParser (PrefixOp name)      = Prefix $ reservedOp (T.unpack name) >> return (\t -> UTerm (TStruct name [t]))
 toParser (InfixOp assoc name) = Infix   ( do reservedOp (T.unpack name)
                                              return (\t1 t2 -> UTerm (TStruct name [t1, t2])))

@@ -10,12 +10,14 @@
   , DeriveTraversable
   , OverloadedStrings
   #-}
-module Interpreter2
+module Language.Prolog2.Interpreter
    ( resolve
    , resolveToTerms
    , PrologT
    , runPrologT , evalPrologT, execPrologT
    , getFreeVar , getFreeVars
+   , RuntimeError(..)
+   , NonUnificationError(..)
    )
 where
 import Control.Exception.Base
@@ -32,9 +34,9 @@ import Data.Maybe (isJust)
 import Data.Generics (everywhere, mkT)
 import Control.Applicative ((<$>),(<*>),(<$),(<*), Applicative(..), Alternative(..))
 
-import Syntax2
-import Database2
-import Trace2
+import Language.Prolog2.Syntax
+import Language.Prolog2.Database
+import Language.Prolog2.Trace
 
 
 data NonUnificationError = InstantiationError Term

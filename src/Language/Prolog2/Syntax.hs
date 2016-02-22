@@ -9,7 +9,7 @@
            , OverloadedStrings
            #-}
 
-module Syntax2
+module Language.Prolog2.Syntax
    ( Term(..) , T(..), UTerm(..)
    , Failure
    , Clause(..), rhs

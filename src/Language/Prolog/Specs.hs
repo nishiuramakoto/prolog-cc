@@ -1,4 +1,4 @@
-module Specs (main) where
+module Language.Prolog.Specs (main) where
 
 import Control.Applicative ((<*),(<*>),(<$>))
 import Control.Monad (forM)
@@ -10,7 +10,7 @@ import System (getArgs)
 import Test.HUnit
 import Text.Parsec
 
-import Prolog (vname, term, bottom, resolve, consult)
+import Language.Prolog (vname, term, bottom, resolve, consult)
 
 
 main = do

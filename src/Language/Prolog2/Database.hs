@@ -1,4 +1,4 @@
-module Database2
+module Language.Prolog2.Database
    ( createDB
    , hasPredicate
    , getClauses
@@ -15,7 +15,7 @@ import qualified Data.Text as T
 import Control.Unification
 import Control.Unification.IntVar
 
-import Syntax2
+import Language.Prolog2.Syntax
 
 
 data Signature = Signature Atom Int deriving (Ord, Eq)

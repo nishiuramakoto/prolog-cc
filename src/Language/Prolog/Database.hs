@@ -1,4 +1,4 @@
-module Database
+module Language.Prolog.Database
    ( createDB
    , hasPredicate
    , getClauses
@@ -13,7 +13,7 @@ where
 import Data.Map (Map)
 import qualified Data.Map as Map
 
-import Syntax
+import Language.Prolog.Syntax
 
 
 data Signature = Signature Atom Int deriving (Ord, Eq)

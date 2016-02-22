@@ -1,5 +1,5 @@
 {-# LANGUAGE DeriveDataTypeable, ViewPatterns, ScopedTypeVariables #-}
-module Syntax
+module Language.Prolog.Syntax
    ( Term(..), var, cut
    , Clause(..), rhs
    , VariableName(..), Atom, Goal, Program
