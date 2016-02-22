@@ -8,7 +8,7 @@ module Language.Prolog2.Parser
    ( Parser(..) , consult, consultString , parseQuery
    , program, whitespace, comment, clause, terms, term, bottom, vname
    ) where
-
+import Prelude
 import Text.Parsec
 import Text.Parsec.Expr hiding (Assoc(..))
 import qualified Text.Parsec.Expr as Parsec

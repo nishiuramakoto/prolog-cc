@@ -1,3 +1,7 @@
+{-# LANGUAGE
+    TypeFamilies
+  #-}
+
 module Language.Prolog2.Database
    ( createDB
    , hasPredicate
@@ -6,7 +10,7 @@ module Language.Prolog2.Database
    , Database(..)
    )
 where
-
+import Import
 import Data.Map (Map)
 import qualified Data.Map as Map
 import Data.Text(Text)

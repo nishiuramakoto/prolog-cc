@@ -40,7 +40,7 @@ module Control.Monad.MaybeK
     , liftMaybeK
     , lowerMaybeK
     ) where
-
+import Import
 #if __GLASGOW_HASKELL__ < 710
 import Control.Applicative  (Applicative(..))
 #endif
@@ -196,7 +196,7 @@ instance (Applicative m, Monad m) => Alternative (MaybeKT m) where
 
 instance (Applicative m, Monad m) => MonadPlus (MaybeKT m) where
     mzero = MKT (\_ -> return Nothing)
-    
+
     m `mplus` n = MKT $ \k -> do
         mb <- runMaybeKT m
         case mb of
