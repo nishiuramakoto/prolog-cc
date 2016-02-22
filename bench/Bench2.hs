@@ -1,7 +1,7 @@
 {-# LANGUAGE OverloadedStrings, QuasiQuotes, StandaloneDeriving , FlexibleInstances #-}
 module Main (main) where
 
-import Prolog2
+import Prolog2 hiding (clause)
 
 import System.Environment (getArgs)
 import Control.DeepSeq (deepseq, NFData(rnf))
@@ -19,8 +19,10 @@ import Data.Maybe (isJust)
 import Data.Generics (everywhere, mkT)
 import Data.Text(Text)
 import qualified Data.Text as T
+import qualified Data.Text.IO as T
 
 import Trace2
+-- import Quote2
 
 instance NFData (UTerm T IntVar) where
    rnf (UTerm (TStruct a ts)) = rnf a `seq` rnf ts
@@ -101,6 +103,7 @@ goals1 = do
   --return [ big x, dark x]
   return [ dark x,big x ]
 
+----------------------------  Program 2 ------------------------------
 program2 :: PrologT IO Program
 program2 = do
   return []
@@ -694,7 +697,7 @@ goals32 = do
   return [ template s , solution s ]
 
 -------------------------------- main --------------------------------
-main = do
+main2 = do
    args <- getArgs
    let n = case args of { [] -> 6; (x:_) -> read x }
 
@@ -710,13 +713,32 @@ main = do
      Right qs      -> do putStrLn $ "Number of solutions: " ++ show (length qs)
                          mapM_ traceLn qs
 
--- main = do
---    args <- getArgs
---    let n = case args of { [] -> 6; (x:_) -> read x }
---    Right p <- consult "bench/queens.pl"
---    putStrLn "Starting benchmark..."
--- --   qs <- resolve p [ts| [a] |]
---    qs <- resolve p [ts|queens($n,Qs)|]
--- --   Right p <- consult "test2.pl"
--- --   qs <- resolve p [ts|member(X,[a,b,c])|]
---    putStrLn $ qs `deepseq` "Number of solutions: " ++ show (length qs)
+
+bench :: FilePath -> [Goal] -> PrologT IO ()
+bench path gs = do
+  parsed <- consult path
+  case parsed of
+       Left  err -> do  liftIO $ putStrLn $ show err
+       Right p   -> do  tss <- resolveToTerms p gs
+                        liftIO $ putStrLn $ "number of solutions:" ++ show (length tss)
+                        liftIO $ mapM_ putTerms tss
+  where putTerms :: [Term] -> IO ()
+        putTerms ts = T.putStrLn $ T.intercalate "," (map ppTerm ts)
+
+parseTest :: FilePath -> IO ()
+parseTest path = do
+  result <- evalPrologT $ consult path
+  case result of
+    Left failure      -> putStrLn $ "run time error:" ++ show failure
+    Right (Left err)  -> putStrLn $ "parse error:" ++ show err
+    Right (Right p)   -> T.putStrLn $ ppProgram p
+
+main = do
+  args <- getArgs
+  let file = case args of { [] -> error "no file name" ; (x:_) -> x }
+  -- parseTest file
+  evalPrologT $ do
+    x <- getFreeVar
+    bench file [ goal x ]
+
+  where goal = struct "goal"

@@ -23,7 +23,7 @@ module Syntax2
    , foldr_pl
    , cons, nil
    , everywhere'
-   , ppTerm
+   , ppTerm , ppClause , ppProgram
    )
 where
 import Data.List.Extras.Pair  (pairWith)
@@ -96,6 +96,17 @@ foldr_pl _ k (UTerm (TStruct "[]" []))   = k
 cons t1 t2 = UTerm $ TStruct "."  [t1,t2]
 nil        = UTerm $ TStruct "[]" []
 
+
+ppProgram :: [Clause] -> Text
+ppProgram cls = T.intercalate "\n" $ map ppClause cls
+
+ppClause :: Clause -> Text
+ppClause (UClause lhs []) = T.concat [ ppTerm lhs , "."]
+ppClause (UClause lhs rhs) = T.concat [ ppTerm lhs , " :- " , ppRHS rhs ]
+ppClause (UClauseFn lhs fn) = T.concat [ ppTerm lhs , " :- " , "<FUNCTION>" ]
+
+ppRHS :: [Term] -> Text
+ppRHS rhs = T.concat [ T.intercalate ", " $ map ppTerm rhs , "." ]
 
 -- instance Show (UTerm T IntVar) where
 --   show = prettyPrint False 0

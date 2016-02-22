@@ -38,7 +38,7 @@ import Trace2
 
 
 
-----------------  Optimization 1: Unroll the monad stack  ----------------
+----------------  TODO: Unroll the monad stack  ----------------
 newtype PrologT m a = PrologT { unPrologT :: ExceptT Failure (IntBindingT T m) a }
                         deriving ( Functor
                                  , Applicative
@@ -52,6 +52,9 @@ instance MonadTrans PrologT where
   lift  m =  PrologT (lift $ lift m)
 
 instance MonadIO m => MonadIO (IntBindingT T m) where
+  liftIO = lift . liftIO
+
+instance MonadIO m => MonadIO (PrologT m) where
   liftIO = lift . liftIO
 
 runPrologT :: Monad m => PrologT m a -> m (Either Failure a, IntBindingState T)

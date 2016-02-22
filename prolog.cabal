@@ -28,6 +28,7 @@ Library
                    Database2
                    Syntax2
                    Trace2
+                   Parser2
                    -------
                    Control.Monad.State.UnificationExtras
                    Control.Monad.MaybeK
@@ -59,7 +60,8 @@ Library
                 text-icu >= 0.7.0.1,
                 text-regex-replace >= 0.1.1.1,
                 text >= 1.2.2.0,
-                logict >= 0.6.0.2
+                logict >= 0.6.0.2 ,
+                directory
 executable bench
   main-is: Bench.hs
   hs-source-dirs: bench

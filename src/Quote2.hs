@@ -11,11 +11,11 @@ import Language.Haskell.TH.Quote (QuasiQuoter(..))
 import Text.Parsec (parse, eof, ParsecT)
 import Data.Generics (extQ, typeOf, Data)
 
-import Prolog2 ( Term(..), VariableName, Clause(..), Goal
+import Prolog2 ( Term(..), Clause(..), Goal
                , term, terms, clause, program, whitespace
               )
 
-$(deriveLiftMany [''Term, ''VariableName, ''Clause])
+$(deriveLiftMany [''Term,  ''Clause])
 
 instance Lift ([Term] -> [Goal]) where
    lift _ = fail "Clauses using Haskell functions can't be lifted."
