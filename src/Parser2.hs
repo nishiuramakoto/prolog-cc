@@ -121,6 +121,7 @@ bottom = variable
       <|> struct
       <|> list
       <|> stringLiteral
+      <|> cut <$ char '!'
       <|> ((UTerm . TStruct (T.pack "{}"))  <$> between (charWs '{') (char '}') terms)
       <|> between (charWs '(') (char ')') term
 
