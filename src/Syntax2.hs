@@ -172,25 +172,6 @@ operatorTable = concat $ zipWith (map . g) [1..] $ hierarchy False
  where g p op@(InfixOp _ name) = (name,(p,op))
        g p op@(PrefixOp name)  = (name,(p,op))
 
--- prettyPrint :: UTerm T IntVar -> String
--- prettyPrint  (UTerm (TStruct "[]" [])) =  "[]"
--- prettyPrint  (UTerm (TStruct "." [x,UTerm (TStruct "." [y,z])]))
---   =  "[" ++ prettyPrint x ++ "," ++ prettyPrint y ++ prettyPrint z ++
--- prettyPrint  (UTerm (TStruct "." [x,y] ))  =  "[" ++ prettyPrint x ++ "|" ++ prettyPrint y ++ "]"
-
--- prettyPrint  (UTerm (TStruct binop [x,y]))
---   | elem binop [ "=", ">" , "<" , "is"]  = prettyPrint x ++ binop ++ prettyPrint y
--- prettyPrint  (UTerm (TStruct binop xs))
---   | elem binop [ "=", ">" , "<" , "is"]  = error "prettyPrint"
--- prettyPrint  (UTerm (TStruct f   []))   =  f
--- prettyPrint  (UTerm (TStruct f   xs))   =  f ++ "(" ++ ppList xs ++ ")"
--- prettyPrint  (UTerm (TCut n)) = "!" ++ show n
--- prettyPrint  (UVar (IntVar x)) = "X" ++ show (x - minBound)
-
--- ppList :: [UTerm T IntVar] -> String
--- ppList ts = foldr  (\t acc -> show t ++ "," ++ acc) "" ts
-
-
 
 instance Show t => Show (UClause t) where
    show (UClause   lhs [] ) = show $ show lhs
@@ -210,7 +191,7 @@ hierarchy ignoreConjunction =
    [ [ prefix "\\+" ]
    , map infixL ["<", "=..", "=:=", "=\\=", "=<", "=", ">=", ">", "\\=", "is", "==", "@<", "@=<", "@>=", "@>"]
    , map infixL ["+", "-", "\\"]
-   , [ infixL "*"]
+   , [ infixL "*", infixL "/"]
    , [ infixL "mod" ]
    , [ prefix "-" ]
    , [ prefix "$" ] -- used for quasi quotation

@@ -34,3 +34,5 @@ member(Item,[_First|Rest]) :-
 
 template([co(1,Y1),co(2,Y2),co(3,Y3),co(4,Y4),co(5,Y5),co(6,Y6)]).
 %% template([1/Y1,2/Y2,3/Y3,4/Y4,5/Y5,6/Y6]).
+
+goal(S) :- template(S) , solution(S).

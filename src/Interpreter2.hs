@@ -37,22 +37,23 @@ import Database2
 import Trace2
 
 
-data PrologError = InstantiationError Term
-                 | InvalidUnificationError Term
+data NonUnificationError = InstantiationError Term
+                         | NonStructGoal Term
                  deriving (Show)
 
-instance Fallible T IntVar (Either Failure a) where
-  occursFailure v t = Left $ occursFailure v t
+type RuntimeError = Either Failure NonUnificationError
+
+instance Fallible T IntVar RuntimeError where
+  occursFailure v t     = Left $ occursFailure v t
   mismatchFailure t1 t2 = Left $ mismatchFailure t1 t2
 
-
 ----------------  TODO: Unroll the monad stack  ----------------
-newtype PrologT m a = PrologT { unPrologT :: ExceptT Failure (IntBindingT T m) a }
+newtype PrologT m a = PrologT { unPrologT :: ExceptT RuntimeError (IntBindingT T m) a }
                         deriving ( Functor
                                  , Applicative
                                  , Monad
                                  , MonadState (IntBindingState T)
-                                 , MonadError Failure
+                                 , MonadError RuntimeError
                                  )
 type PrologDatabaseMonad m a = ReaderT Database (PrologT m) a
 
@@ -65,17 +66,15 @@ instance MonadIO m => MonadIO (IntBindingT T m) where
 instance MonadIO m => MonadIO (PrologT m) where
   liftIO = lift . liftIO
 
-runPrologT :: Monad m => PrologT m a -> m (Either Failure a, IntBindingState T)
+runPrologT :: Monad m => PrologT m a -> m (Either RuntimeError a, IntBindingState T)
 runPrologT = runIntBindingT . runExceptT . unPrologT
 
-evalPrologT :: Monad m => PrologT m a -> m (Either Failure a)
+evalPrologT :: Monad m => PrologT m a -> m (Either RuntimeError a)
 evalPrologT = evalIntBindingT . runExceptT . unPrologT
 
 execPrologT :: Monad m => PrologT m a -> m (IntBindingState T)
 execPrologT = execIntBindingT . runExceptT . unPrologT
 ---------------------- End Unrolled Monad stack ----------------------
-
-
 
 
 getFreeVar :: (Applicative m, Monad m) => PrologT m Term
@@ -191,7 +190,7 @@ resolve program goals = do
       getBranches  usf (UVar n) gs = do
         nextGoal <- lift $ PrologT $ applyBindings (UVar n)
         case nextGoal of
-          (UVar _) -> error "cannot instantiate variable" -- TODO eliminate this
+          (UVar x) -> throwError $ Right (InstantiationError (UVar x))
           _        -> getBranches usf nextGoal gs
 
       getBranches  usf nextGoal gs = do
@@ -229,8 +228,8 @@ resolve program goals = do
                         UClauseFn lhs fn -> do
                           ts' <- PrologT $ applyBindingsAll ts
                           return $ rhs clause ts' ++ gs
-                    UTerm (TCut n)       -> error "unifying '!'"
-                    UVar  n              -> error "unifying variable for arithmetic goal"
+                    UTerm (TCut n)       -> throwError $ Right $ NonStructGoal (UTerm (TCut n))
+                    UVar  n              -> throwError $ Right $ NonStructGoal (UVar n)
                   let gs'' = everywhere' shiftCut gs'
                   usf' <- get
                   return [(usf', gs'')]

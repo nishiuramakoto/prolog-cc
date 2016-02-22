@@ -56,13 +56,13 @@ program :: Monad m => Parser m Program
 program = many (clause <* char '.' <* whitespace)
 
 whitespace :: Monad m => Parser m ()
-whitespace = skipMany (comment <|> skip space <?> "")
+whitespace = skipMany (try comment <|> skip space <?> "")
 
 comment :: Monad m => Parser m ()
 comment = skip $ choice
-   [ string "/*" >> (manyTill anyChar $ try $ string "*/")
-   , char '%' >> (manyTill anyChar $ try $ skip newline <|> eof)
-   ]
+          [ string "/*" >> (manyTill anyChar $ try $ string "*/")
+          , char '%' >> (manyTill anyChar $ try $ skip newline <|> eof)
+          ]
 
 skip :: Monad m => Parser m a -> Parser m ()
 skip = (>> return ())
@@ -144,7 +144,7 @@ genPrologDef    = P.LanguageDef
                , P.identStart     = letter <|> char '_'
                , P.identLetter    = alphaNum <|> oneOf "_'"
                , P.opStart        = oneOf ";,<=>\\i*+m@"
-               , P.opLetter       = oneOf "=.:<+"
+               , P.opLetter       = oneOf "=.:<+/>"
                , P.reservedOpNames= operatorNames
                , P.reservedNames  = []
                , P.caseSensitive  = True
@@ -164,7 +164,7 @@ charWs :: Monad m => Char -> Parser m Char
 charWs c = char c <* whitespace
 
 operatorNames :: [String]
-operatorNames = [ ";", ",", "<", "=..", "=:=", "=<", "=", ">=", ">", "\\=", "is", "*", "+", "-", "\\", "mod", "\\+" ]
+operatorNames = [ ";", ",", "<", "=..", "=:=", "=<", "=", ">=", ">", "\\=", "is", "/" , "*", "+", "-", "\\", "mod", "\\+" ]
 
 variable :: Monad m => Parser m Term
 variable = (do _ <- try (char '_' <* notFollowedBy (alphaNum <|> char '_'))
