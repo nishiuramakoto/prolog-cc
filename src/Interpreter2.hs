@@ -1,5 +1,6 @@
 {-# LANGUAGE
     ViewPatterns
+  , MultiParamTypeClasses
   , GeneralizedNewtypeDeriving
   , FlexibleInstances
   , FlexibleContexts
@@ -36,6 +37,13 @@ import Database2
 import Trace2
 
 
+data PrologError = InstantiationError Term
+                 | InvalidUnificationError Term
+                 deriving (Show)
+
+instance Fallible T IntVar (Either Failure a) where
+  occursFailure v t = Left $ occursFailure v t
+  mismatchFailure t1 t2 = Left $ mismatchFailure t1 t2
 
 
 ----------------  TODO: Unroll the monad stack  ----------------
@@ -87,6 +95,7 @@ builtins = do
   [a,b,c,d,e] <- getFreeVars 5
   [x0,x1,x2,x3,x4,x5] <- getFreeVars 6
   [y0,y1,y2,y3,y4,y5] <- getFreeVars 6
+  [_1,_2,_3,_4,_5,_6] <- getFreeVars 6
 
   return [ UClause (UTerm (TStruct "="   [x, x])) []
          , UClause (UTerm (TStruct "\\+" [x'])) [x', cut, UTerm (TStruct "false" []) ]
@@ -94,6 +103,8 @@ builtins = do
 
          , UClause (UTerm (TStruct "true" [])) []
          , UClause (UTerm (TStruct "," [a,b])) [a, b]
+         , UClause (UTerm (TStruct ";" [c, _1])) [c]
+         , UClause (UTerm (TStruct ";" [_2, d])) [d]
 
          , UClauseFn (UTerm (TStruct "is"  [x0, y0])) is
          , UClauseFn (UTerm (TStruct "<"   [x1, y1])) (binaryIntegerPredicate (<))
@@ -218,8 +229,8 @@ resolve program goals = do
                         UClauseFn lhs fn -> do
                           ts' <- PrologT $ applyBindingsAll ts
                           return $ rhs clause ts' ++ gs
-                    UTerm _              -> error "unifying nonterm  for arithmetic goal"
-                    UVar  _              -> error "unifying variable for arithmetic goal"
+                    UTerm (TCut n)       -> error "unifying '!'"
+                    UVar  n              -> error "unifying variable for arithmetic goal"
                   let gs'' = everywhere' shiftCut gs'
                   usf' <- get
                   return [(usf', gs'')]

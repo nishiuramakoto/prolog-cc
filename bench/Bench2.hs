@@ -111,6 +111,14 @@ goals2 :: PrologT IO [Goal]
 goals2 = do
   return [ atom "1" |<|  atom "2" ]
 
+---------------------------- Program 2-1  ----------------------------
+program2_1 :: PrologT IO Program
+program2_1 = do
+  return []
+goals2_1 :: PrologT IO [Goal]
+goals2_1 = do
+  return [ atom "1" |<|  atom "2"  ||| atom "3" |>| atom "1" ]
+
 ------------------------ Program 3 (n queens) ------------------------
 queens = struct2 "queens"
 queens3 = struct3 "queens3"
@@ -703,7 +711,7 @@ main2 = do
 
    putStrLn "Starting benchmark..."
 
-   let monad = (do { ps <- program3 ; gs <- goals3 n ;  resolveToTerms ps gs })
+   let monad = (do { ps <- program2_1 ; gs <- goals2_1 ;  resolveToTerms ps gs })
 
    qs <- evalPrologT $ monad
 
@@ -736,7 +744,8 @@ parseTest path = do
 main = do
   args <- getArgs
   let file = case args of { [] -> error "no file name" ; (x:_) -> x }
-  -- parseTest file
+  parseTest file
+
   evalPrologT $ do
     x <- getFreeVar
     bench file [ goal x ]
