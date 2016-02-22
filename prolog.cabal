@@ -1,9 +1,9 @@
-Name:                prolog
+Name:                prolog2
 Version:             0.1
-Synopsis:            A Prolog interpreter written in Haskell.
+Synopsis:            A Prolog interpreter written in Haskell, optimized using unification-fd.
 License:             PublicDomain
-Author:              Matthias Bartsch
-Maintainer:          bartsch@cs.uni-bonn.de
+Author:              Matthias Bartsch, Makoto Nishiura
+Maintainer:          nishiuramakoto@gmail.com
 Category:            Language
 Build-type:          Simple
 
@@ -61,7 +61,7 @@ Library
 executable bench
   main-is: Bench.hs
   hs-source-dirs: bench
-  build-depends: base, prolog , deepseq, text
+  build-depends: base, prolog2 , deepseq, text
 
   -- ghc-options:  -fprof-auto -rtsopts -with-rtsopts="-p"
   -- ghc-options: -prof -fprof-auto -rtsopts -with-rtsopts="-p"
@@ -69,5 +69,5 @@ executable bench
 executable bench2
   main-is: Bench2.hs
   hs-source-dirs: bench
-  build-depends: base,mtl,syb, prolog , deepseq , text
+  build-depends: base,mtl,syb, prolog2 , deepseq , text
 --  ghc-options:  -fprof-auto -rtsopts

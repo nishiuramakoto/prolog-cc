@@ -36,7 +36,7 @@ import Control.Applicative ((<$>),(<*>),(<$),(<*), Applicative(..), Alternative(
 
 import Language.Prolog2.Syntax
 import Language.Prolog2.Database
-import Language.Prolog2.Trace
+-- import Language.Prolog2.Trace
 
 
 data NonUnificationError = InstantiationError Term

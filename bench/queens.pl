@@ -1,3 +1,4 @@
+% -*- mode:prolog; -*-
 % Find all solutions of an 11 by 11 board.
 % The \+ with the fail is a trick to make it find all solutions.
 queensBenchmark :- time(\+ (queens(11, _Qs), fail)).
@@ -22,3 +23,5 @@ selectq(X,[Y|Ys],[Y|Zs]) :- selectq(X,Ys,Zs).
 
 rangeList2(M,N,[M]) :- M >= N.
 rangeList2(M,N,[M|Tail]) :- M < N , M1 is M+1 , rangeList2(M1,N,Tail).
+
+goal(Qs) :- queens(6,Qs).

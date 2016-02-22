@@ -2,7 +2,7 @@ module Language.Prolog2
    ( Term(..), T(..) , atom, cons,nil
    , Clause(..), rhs
    , UClause(..)
-   , Atom,  Program, Goal , Failure
+   , Atom,  Program, Goal , Failure , RuntimeError
    , PrologT
    , runPrologT , execPrologT, evalPrologT
    , getFreeVar, getFreeVars
