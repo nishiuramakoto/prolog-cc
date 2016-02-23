@@ -7,3 +7,5 @@ bench/runbench
 *.swp
 *.dyn_o
 *.dyn_hi
+.\#*
+\#*
