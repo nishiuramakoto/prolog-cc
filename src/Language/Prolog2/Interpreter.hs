@@ -144,13 +144,13 @@ type Branch = (IntBindingState T, [Goal])
 
 resolveToTerms ::  Program ->  [Goal] -> PrologT (CC (PS Html) Handler)  [[Term]]
 resolveToTerms program goals = do
-  vs <- PrologT $ lift ((join <$> mapM (U.getFreeVars) goals)) -- :: IntBindingT T IO [IntVar]) :: PrologT [IntVar]
+  vs <- PrologT $ lift ((join <$> Prelude.mapM (U.getFreeVars) goals)) -- :: IntBindingT T IO [IntVar]) :: PrologT [IntVar]
   usfs <- resolve program goals
-  mapM (f (map UVar vs)) usfs
+  Prelude.mapM (f (map UVar vs)) usfs
     where
       f :: Monad m => [Term] -> IntBindingState T -> PrologT m [Term]
       f vs usf = do put usf
-                    PrologT $ mapM applyBindings vs
+                    PrologT $ Prelude.mapM applyBindings vs
 
 -- Yield all unifiers that resolve <goal> using the clauses from <program>.
 resolve ::  Program ->  [Goal] -> PrologT (CC (PS Html) Handler) [IntBindingState T]
@@ -274,7 +274,7 @@ freshenClauses clauses = do
   return freshened
 
 countFreeVars :: Monad m => Program -> PrologT m Int
-countFreeVars program = Prelude.maximum <$> (mapM count program)
+countFreeVars program = Prelude.maximum <$> (Prelude.mapM count program)
   where
     count :: Monad m => Clause -> PrologT m Int
     count (UClause   lhs rhs) = length <$> (PrologT $ lift $ getFreeVarsAll rhs)
