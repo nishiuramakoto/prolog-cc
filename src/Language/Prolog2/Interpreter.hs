@@ -213,7 +213,7 @@ resolve program goals = do
         clauses  <- asks (getClauses nextGoal)
         lift $ do
           clauses' <- freshenClauses clauses
-          join <$>  forM clauses' unifyM
+          join <$>  Import.forM clauses' unifyM
         -- trace "nextGoal:" >> traceLn nextGoal
         -- trace "clauses:" >> traceLn clauses
         -- trace "freshenedClauses:" >>  traceLn clauses'
