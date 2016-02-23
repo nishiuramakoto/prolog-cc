@@ -29,7 +29,7 @@ import Control.Monad.Reader
 import Control.Monad.State
 import Control.Monad.Except
 import Control.Monad.CC.CCCxe
-import Control.Monad.Identity
+import Control.Monad.Identity hiding (mapM)
 import Control.Unification hiding (getFreeVars)
 import qualified Control.Unification as U
 import Control.Unification.IntVar
