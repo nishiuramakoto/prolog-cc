@@ -5,11 +5,11 @@ BENCH2=dist/build/bench2/bench2
 
 all : set-remote
 
-set-remote : push
-	git remote set-url http://aki23b.ddns.net/git/prolog-fd
+set-remote: push
+	git remote set-url origin http://aki23b.ddns.net/git/prolog-fd.git
 
 push :
-	git remote set-url origin /var/www/git/prolog-fd/ && \
+	git remote set-url origin /var/www/git/prolog-fd.git && \
 	git push --all origin
 
 ####################################################################
