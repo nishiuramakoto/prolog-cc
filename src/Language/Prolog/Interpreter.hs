@@ -55,12 +55,12 @@ type Branch = (Unifier, [Goal])
 trace :: (MonadIO m , Show a) => a -> m ()
 trace x = liftIO $ putStrLn $ show x
 -- Yield all unifiers that resolve <goal> using the clauses from <program>.
-resolve :: (Functor m, Monad m, MonadIO m) => Program -> [Goal] -> m [Unifier]
+resolve :: (Functor m, Applicative m, Monad m, MonadIO m) => Program -> [Goal] -> m [Unifier]
 resolve program goals = map cleanup <$> runReaderT (resolve' 1 [] goals []) (createDB (builtins ++ program) ["false","fail"])   -- NOTE Is it a good idea to "hardcode" the builtins like this?
   where
       cleanup = filter ((\(VariableName i _) -> i == 0) . fst)
 
-      resolve' :: (Functor m, MonadReader Database m , MonadIO m )
+      resolve' :: (Functor m, Applicative m , MonadReader Database m , MonadIO m )
                   => Int -> Unifier -> [Goal] -> Stack -> m [Unifier]
       resolve' depth usf []         stack = (cleanup usf:) <$> backtrack depth stack
       resolve' depth usf (Cut n:gs) stack =  resolve' depth usf gs (drop n stack)
@@ -72,7 +72,7 @@ resolve program goals = map cleanup <$> runReaderT (resolve' 1 [] goals []) (cre
          -- trace $ ("branches",length branches, branches)
          choose depth usf gs branches stack
 
-      getBranches :: (MonadReader Database m , MonadIO m)
+      getBranches :: (Functor m, Applicative m, MonadReader Database m , MonadIO m)
                      => Int -> Unifier -> Goal -> [Goal] -> m [Branch]
       getBranches depth usf nextGoal gs = do
             clauses <- asks (getClauses nextGoal)
@@ -87,12 +87,12 @@ resolve program goals = map cleanup <$> runReaderT (resolve' 1 [] goals []) (cre
                                gs'' = everywhere (mkT shiftCut) gs'
                            in (u', gs'')
 
-      choose :: (Monad m, MonadReader Database m, MonadIO m)
+      choose :: (Functor m, Applicative m, Monad m, MonadReader Database m, MonadIO m)
                 => Int -> Unifier -> [Goal] -> [Branch] -> Stack -> m [Unifier]
       choose depth _usf _gs  (_branches@[]) stack = backtrack depth stack
       choose depth  usf  gs ((u',gs'):alts) stack = resolve' (succ depth) u' gs' ((usf,gs,alts) : stack)
 
-      backtrack :: (Monad m, MonadReader Database m , MonadIO m)
+      backtrack :: (Functor m, Applicative m , Monad m, MonadReader Database m , MonadIO m)
                    => Int -> Stack -> m [ Unifier ]
       backtrack _     []                  =   return (fail "Goal cannot be resolved!")
       backtrack depth ((u,gs,alts):stack) =   choose (pred depth) u gs alts stack
