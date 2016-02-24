@@ -26,11 +26,13 @@ module Language.Prolog2.Syntax
    , ppTerm , ppClause , ppProgram
    )
 where
-import Import hiding(cons,nil)
+
 import Data.List.Extras.Pair  (pairWith)
 import Data.Generics (Data(..), Typeable(..))
--- import Data.List (intercalate)
+import Data.List (intercalate)
 import Data.Char (isLetter)
+import Data.Traversable
+import Data.Foldable(Foldable)
 import Control.Unification hiding (getFreeVars)
 import Control.Unification.IntVar
 import Control.Unification.Types

@@ -40,7 +40,7 @@ module Control.Monad.MaybeK
     , liftMaybeK
     , lowerMaybeK
     ) where
-import Import
+
 #if __GLASGOW_HASKELL__ < 710
 import Control.Applicative  (Applicative(..))
 #endif

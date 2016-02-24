@@ -40,7 +40,6 @@ module Control.Monad.EitherK
     , throwEitherKT
     , catchEitherKT
     ) where
-import Import
 
 #if __GLASGOW_HASKELL__ < 710
 import Data.Monoid          (Monoid(..))

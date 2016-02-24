@@ -24,7 +24,7 @@ module Control.Monad.State.UnificationExtras
     , modify'
     , localState
     ) where
-import Import hiding(get)
+
 import Control.Monad            (liftM)
 import Control.Monad.Reader     (Reader(), ReaderT(..))
 import Control.Monad.State.Lazy (MonadState(..), State(), StateT(..))
