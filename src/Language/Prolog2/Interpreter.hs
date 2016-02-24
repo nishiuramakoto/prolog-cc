@@ -96,7 +96,7 @@ getFreeVars n = do x  <- getFreeVar
                    return (x:xs)
 
 
-builtins :: Monad m => PrologT m [Clause]
+builtins :: (Functor m, Applicative m, Monad m ) => PrologT m [Clause]
 builtins = do
   [x,x',x''] <-  getFreeVars 3
   [a,b,c,d,e] <- getFreeVars 5
@@ -148,7 +148,7 @@ resolveToTerms program goals = do
   usfs <- resolve program goals
   Prelude.mapM (f (map UVar vs)) usfs
     where
-      f :: Monad m => [Term] -> IntBindingState T -> PrologT m [Term]
+      f :: (Functor m, Applicative m, Monad m) => [Term] -> IntBindingState T -> PrologT m [Term]
       f vs usf = do put usf
                     PrologT $ Prelude.mapM applyBindings vs
 
@@ -201,7 +201,7 @@ resolve program goals = do
 
         choose depth usf gs branches stack
 
-      getBranches ::  Monad m => IntBindingState T -> Goal -> [Goal] -> PrologDatabaseMonad m [Branch]
+      getBranches ::  (Functor m, Applicative m, Monad m) => IntBindingState T -> Goal -> [Goal] -> PrologDatabaseMonad m [Branch]
       getBranches  usf (UVar n) gs = do
         nextGoal <- lift $ PrologT $ applyBindings (UVar n)
         case nextGoal of
@@ -219,7 +219,7 @@ resolve program goals = do
         -- trace "freshenedClauses:" >>  traceLn clauses'
 
           where
-            unifyM :: Monad m => Clause -> PrologT m [Branch]
+            unifyM :: (Functor m, Applicative m, Monad m) => Clause -> PrologT m [Branch]
             unifyM clause = do
               put usf
               -- traceLn $ "CurrentBindings:"
@@ -268,18 +268,17 @@ shiftCut (TCut n) = TCut (succ n)
 shiftCut t        = t
 
 
-freshenClauses :: Monad m => [Clause] -> PrologT m [Clause]
+freshenClauses :: (Functor m, Applicative m, Monad m) => [Clause] -> PrologT m [Clause]
 freshenClauses clauses = do
   (UClauseList freshened) <- PrologT $ freshenAll (UClauseList clauses)
   return freshened
 
-countFreeVars :: Monad m => Program -> PrologT m Int
-countFreeVars program = Prelude.maximum <$> (Prelude.mapM count program)
+countFreeVars :: (Functor m, Applicative m, Monad m) => Program -> PrologT m Int
+countFreeVars program = Prelude.maximum <$> Import.mapM count program
   where
-    count :: Monad m => Clause -> PrologT m Int
+    count :: (Functor m, Applicative m, Monad m) => Clause -> PrologT m Int
     count (UClause   lhs rhs) = length <$> (PrologT $ lift $ getFreeVarsAll rhs)
     count (UClauseFn lhs fn)  = return 2
-
 
 
 updateNextFreeVar depth  =

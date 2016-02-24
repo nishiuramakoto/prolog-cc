@@ -17,6 +17,8 @@ push :
 
 test : bench2
 
+test: bench2
+
 tests:
 	(cd specs; runghc -i../src Specs)
 
@@ -55,9 +57,12 @@ bench4:
 bench:
 	cabal build && time -p $(BENCH) 6
 
+# bench2:
+# 	( cabal build &&  time -p $(BENCH2) 8 \
+# 	)
+
 bench2:
-	( cabal build &&  time -p $(BENCH2) bench/queens1.pl \
-	)
+	cabal build &&  time -p $(BENCH2) bench/queens1.pl
 
 bench2-prof: prof
 	( cabal build &&  time -p $(BENCH2) 7 +RTS -p \
