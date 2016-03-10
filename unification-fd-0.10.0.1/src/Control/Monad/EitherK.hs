@@ -40,7 +40,14 @@ module Control.Monad.EitherK
     , throwEitherKT
     , catchEitherKT
     ) where
+
+#ifdef YESOD
 import Import
+#else
+import Control.Applicative
+import Control.Monad
+import Control.Monad.Trans
+#endif
 
 #if __GLASGOW_HASKELL__ < 710
 import Data.Monoid          (Monoid(..))

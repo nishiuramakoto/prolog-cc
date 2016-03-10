@@ -49,11 +49,11 @@ import Control.Monad.Logic   (MonadLogic(..))
 import Control.Unification.Types
 ----------------------------------------------------------------
 
-fib :: Int -> Int
-fib 0 = 1
-fib 1 = 1
-fib n = fib (n-1) + fib (n-2)
-{-# INLINE fib #-}
+_fib :: Int -> Int
+_fib 0 = 1
+_fib 1 = 1
+_fib n = _fib (n-1) + _fib (n-2)
+{-# INLINE _fib #-}
 ----------------------------------------------------------------
 
 -- | A \"mutable\" unification variable implemented by an integer.

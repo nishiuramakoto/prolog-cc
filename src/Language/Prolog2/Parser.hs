@@ -5,7 +5,7 @@
 
 
 module Language.Prolog2.Parser
-   ( Parser(..) , consult, consultString , parseQuery
+   ( Parser , consult, consultString , parseQuery
    , program, whitespace, comment, clause, terms, term, bottom, vname
    ) where
 import Prelude
@@ -15,16 +15,16 @@ import qualified Text.Parsec.Expr as Parsec
 import qualified Text.Parsec.Token as P
 import qualified Text.Parsec.Error as P
 import qualified Text.Parsec.Pos as P
-import Text.Parsec.Language (emptyDef)
-import Control.Applicative (Applicative,(<$>),(<*>),(<$),(<*))
+-- import Text.Parsec.Language (emptyDef)
+-- import Control.Applicative (Applicative,(<$>),(<*>),(<$),(<*))
 import Control.Monad.State
-import Control.Unification.IntVar
-import Data.Text(Text)
+-- import Control.Unification.IntVar
+-- import Data.Text(Text)
 import qualified Data.Text as T
 import Data.Map(Map)
 import qualified Data.Map as Map
-import Data.Set(Set)
-import qualified Data.Set as Set
+-- import Data.Set(Set)
+-- import qualified Data.Set as Set
 import System.Directory
 
 
@@ -75,29 +75,34 @@ clause = do resetState
    where
      normal :: (Functor m, Applicative m, Monad m) => Term -> Parser m Clause
      normal t = do
-       ts <- option [] $ do string ":-" <* whitespace
+       ts <- option [] $ do _ <- string ":-" <* whitespace
                             terms
        return (UClause t ts)
 
      dcg :: (Functor m, Applicative m, Monad m) => Term -> Parser m Clause
      dcg t = do
-            string "-->" <* whitespace
+            _ <- string "-->" <* whitespace
             ts <- terms
             translate (t,ts)
 
      translate :: (Functor m, Applicative m, Monad m) => (Term, [Term]) -> Parser m Clause
-     translate ((UTerm (TStruct a ts)), rhs) = do
-       vars <- lift $ getFreeVars (length rhs + 1)
+     translate ((UTerm (TStruct a ts)), rhs'') = do
+       vars <- lift $ getFreeVars (length rhs'' + 1)
        let lhs' = UTerm (TStruct a (arguments ts (head vars) (last vars)))
-           rhs' = zipWith3 translate' rhs vars (tail vars)
+           rhs' = zipWith3 translate' rhs'' vars (tail vars)
        return $ UClause lhs' rhs'
+     translate _ = error "Internal Parser Error"
 
-     translate' t s s0 | isList t   = UTerm (TStruct (T.pack "=") [ s, foldr_pl cons s0 t ])     -- Terminal
-     translate' t@(UTerm (TStruct a ts)) s s0 | a == (T.pack "{}")  =
-                                                  foldr and (UTerm (TStruct (T.pack "=") [ s, s0 ])) ts -- Braced terms
+     translate' t s s0 | isList t   = let l = foldr_pl cons s0 t
+                                      in  case l of
+                                      Just l' ->  UTerm (TStruct (T.pack "=") [ s, l' ])     -- Terminal
+                                      Nothing ->  error "This is impossible"
+     translate' (UTerm (TStruct a ts)) s s0 | a == (T.pack "{}")  =
+                                                foldr and_ (UTerm (TStruct (T.pack "=") [ s, s0 ])) ts -- Braced terms
      translate' (UTerm (TStruct a ts))  s s0 = UTerm (TStruct a (arguments ts s s0))    -- Non-Terminal
+     translate' _ _ _ = error "Internal parser error"
 
-     and x y = UTerm (TStruct (T.pack ",") [x,y])
+     and_ x y = UTerm (TStruct (T.pack ",") [x,y])
 
 
 isList :: Term -> Bool
@@ -234,17 +239,17 @@ resetState = updateState (\_ -> emptyState)
 
 lookupVarMap :: (Functor m, Applicative m, Monad m) => String -> Parser m (Maybe Term)
 lookupVarMap v = do
-  map <- varMap <$> getState
-  return $ Map.lookup v map
+  m <- varMap <$> getState
+  return $ Map.lookup v m
 
 insertVarMap :: (Functor m, Applicative m, Monad m) => String -> Term -> Parser m ()
 insertVarMap v x = do
-  ParserState vmap wildcards <- getState
+  ParserState vmap wild_ <- getState
   let vmap' = Map.insert v x vmap
-  setState $ ParserState vmap' wildcards
+  setState $ ParserState vmap' wild_
 
 insertWildcard :: (Functor m, Applicative m, Monad m) => String -> Term -> Parser m ()
 insertWildcard v x = do
-  ParserState vmap wildcards <- getState
-  let wildcards' = (v,x) : wildcards
+  ParserState vmap wild_ <- getState
+  let wildcards' = (v,x) : wild_
   setState $ ParserState vmap wildcards'

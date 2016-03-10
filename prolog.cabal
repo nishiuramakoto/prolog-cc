@@ -1,4 +1,4 @@
-Name:                prolog2
+Name:                prolog-fd
 Version:             0.1
 Synopsis:            A Prolog interpreter written in Haskell, optimized using unification-fd.
 License:             PublicDomain
@@ -9,17 +9,18 @@ Build-type:          Simple
 
 Cabal-version:       >=1.8
 
+Flag dev
+    Description:   Turn on development settings, like auto-reload templates.
+    Default:       False
+
+Flag library-only
+    Description:   Build for use with "yesod devel"
+    Default:       False
+
+
 Library
-  Exposed-modules: Language.Prolog
-                   Language.Prolog.Interpreter
-                   Language.Prolog.Database
-                   Language.Prolog.Unifier
-                   Language.Prolog.Parser
-                   Language.Prolog.Syntax
-                   Language.Prolog.IsString
-                   Language.Prolog.Quote
-                   --------
-                   Language.Prolog2
+  Hs-Source-Dirs:  src , unification-fd-0.10.0.1/src
+  Exposed-modules: Language.Prolog2
                    Language.Prolog2.Interpreter
                    Language.Prolog2.Database
                    Language.Prolog2.Syntax
@@ -38,7 +39,14 @@ Library
                    Control.Unification.Ranked.IntVar
                    Data.Functor.Fixedpoint
   Other-modules:
-  Hs-Source-Dirs:  src , unification-fd-0.10.0.1/src
+
+  if flag(dev) || flag(library-only)
+        cpp-options:   -DDEVELOPMENT
+        ghc-options:   -Wall -fwarn-tabs -O0
+  else
+        ghc-options:   -Wall -fwarn-tabs -O2
+
+  extensions: CPP
 
   Build-depends:
 
@@ -58,10 +66,11 @@ Library
                 text >= 1.2.2.0,
                 logict >= 0.6.0.2 ,
                 directory
-executable bench
-  main-is: Bench.hs
-  hs-source-dirs: bench
-  build-depends: base, prolog2 , deepseq, text
+
+-- executable bench
+--   main-is: Bench.hs
+--   hs-source-dirs: bench
+--   build-depends: base, prolog2 , deepseq, text
 
   -- ghc-options:  -fprof-auto -rtsopts -with-rtsopts="-p"
   -- ghc-options: -prof -fprof-auto -rtsopts -with-rtsopts="-p"
@@ -69,5 +78,22 @@ executable bench
 executable bench2
   main-is: Bench2.hs
   hs-source-dirs: bench
-  build-depends: base,mtl,syb, prolog2 , deepseq , text
+  build-depends: base,mtl,syb, prolog-fd , deepseq , text
 --  ghc-options:  -fprof-auto -rtsopts
+
+
+
+test-suite test
+    type:              exitcode-stdio-1.0
+    main-is:           Spec.hs
+    hs-source-dirs:    test
+    ghc-options:       -Wall
+
+    extensions: CPP
+
+    build-depends: base
+                 , prolog-fd
+                 , mtl  >= 2.2.1
+                 , text >= 1.2.2.0
+                 , QuickCheck
+                 , hspec >= 2.0.0

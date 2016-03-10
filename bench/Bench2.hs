@@ -267,7 +267,7 @@ goals10 = do
   [l1,l2] <- getFreeVars 2
   return [ conc l1 l2 (plist [a,b,c]) ]
 
-----------------------------  Program 10  ----------------------------
+----------------------------  Program 11  ----------------------------
 program11 :: PrologT IO Program
 program11 = program9
 goals11 :: PrologT IO [Goal]
