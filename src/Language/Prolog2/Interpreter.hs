@@ -9,6 +9,7 @@
   , ScopedTypeVariables
   , DeriveTraversable
   , OverloadedStrings
+  , CPP
   #-}
 module Language.Prolog2.Interpreter
    ( resolve
@@ -21,14 +22,17 @@ module Language.Prolog2.Interpreter
    )
 where
 
+#ifdef YESOD
 import Import hiding(cons,trace,mapM_,sort,get, maximum)
 import qualified Prelude
+import Control.Monad.CC.CCCxe
+#endif
+
 
 import Control.Exception.Base
 import Control.Monad.Reader
 import Control.Monad.State
 import Control.Monad.Except
-import Control.Monad.CC.CCCxe
 import Control.Monad.Identity hiding (mapM)
 import Control.Unification hiding (getFreeVars)
 import qualified Control.Unification as U
