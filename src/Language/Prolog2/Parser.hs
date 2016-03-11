@@ -15,6 +15,7 @@ import qualified Text.Parsec.Expr as Parsec
 import qualified Text.Parsec.Token as P
 import qualified Text.Parsec.Error as P
 import qualified Text.Parsec.Pos as P
+
 -- import Text.Parsec.Language (emptyDef)
 -- import Control.Applicative (Applicative,(<$>),(<*>),(<$),(<*))
 import Control.Monad.State
@@ -23,8 +24,8 @@ import Control.Monad.State
 import qualified Data.Text as T
 import Data.Map(Map)
 import qualified Data.Map as Map
--- import Data.Set(Set)
--- import qualified Data.Set as Set
+import Data.Char
+
 import System.Directory
 
 
@@ -196,12 +197,15 @@ vname = ((:) <$> upper    <*> many  (alphaNum <|> char '_') <|>
          (:) <$> char '_' <*> many1 (alphaNum <|> char '_'))
 
 atom :: (Functor m, Applicative m, Monad m) => Parser m String
-atom = (:) <$> lower <*> many (alphaNum <|> char '_')
+atom = (:) <$> lowerNonUpper <*> many (alphaNum <|> char '_')
    <|> many1 digit
    <|> choice (map string operatorNames)
    <|> many1 (oneOf "#$&*+/.<=>\\^~")
    <|> between (char '\'') (char '\'') (many (noneOf "'"))
    <?> "atom"
+
+lowerNonUpper :: (Functor m, Applicative m, Monad m) => Parser m Char
+lowerNonUpper = satisfy (\c -> isAlpha c && not (isUpper c))
 
 struct :: (Functor m, Applicative m, Monad m) => Parser m Term
 struct = do a <- atom

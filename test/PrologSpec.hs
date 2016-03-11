@@ -5,7 +5,7 @@
 
 module PrologSpec (spec) where
 
-import TestImport
+import TestImport hiding (runIO)
 import Test.QuickCheck
 
 import Control.Exception (evaluate)
@@ -60,7 +60,7 @@ four  = num 4
 plist :: [Term] -> Term
 plist = foldr cons nil
 
-
+-----------------------------------------------------------------------------
 bear     = atom "bear"
 elephant = atom "elephant"
 cat      = atom "cat"
@@ -96,6 +96,39 @@ goal1a :: PrologT Identity [Goal]
 goal1a = do
   x <- getFreeVar
   return [ dark x , dark x]
+
+----------------------------------------------------------------------
+熊     = atom "熊"
+象     = atom "象"
+猫     = atom "猫"
+
+大きい = struct "大きい"
+小さい = struct "小さい"
+茶色い = struct "茶色い"
+黒い  = struct "黒い"
+灰色   = struct "灰色"
+暗い   = struct "暗い"
+
+
+programU  :: PrologT Identity Program
+programU = do
+  z  <- getFreeVar
+  z' <- getFreeVar
+  return [ UClause (大きい 熊) []
+         , UClause (大きい 象) []
+         , UClause (小さい 猫) []
+         , UClause (茶色い 熊) []
+         , UClause (黒い 猫) []
+         , UClause (灰色 象) []
+         , UClause (暗い z)  [黒い z]
+         , UClause (暗い z') [茶色い z']
+         ]
+
+goalU :: PrologT Identity [Goal]
+goalU = do
+  x <- getFreeVar
+  return [ 暗い x,大きい x ]
+
 
 
 ------------------------ Program 3 (n queens) ------------------------
@@ -145,7 +178,7 @@ program3 = do
              ]
 
 
-goal3 :: Int ->  PrologT Identity [Goal]
+goal3 :: Monad m => Int ->  PrologT m [Goal]
 goal3 n = do [qs,l,x,xs] <- getFreeVars 4
 --            return [ not' (attack three (plist [one])) ]
                            -- return [ attack3 one one (plist [two]) ]
@@ -182,8 +215,13 @@ failure = False `shouldBe` True
 run :: PrologT Identity Program -> PrologT Identity [Goal] -> Either RuntimeError [[Term]]
 run prog goal = runIdentity $ evalPrologT $ do { ps <- prog ; gs <- goal ; resolveToTerms ps gs }
 
-right :: Either a b -> b
-right (Right x) = x
+runIO ::  Program -> [Goal] -> IO (Either RuntimeError [[Term]])
+runIO prog goal = evalPrologT $ resolveToTerms prog goal
+
+
+fromRight :: Show a => Either a b -> b
+fromRight (Right x) = x
+fromRight (Left x) = error $ "must be right:" ++ show x
 
 shouldBeRight :: (Show b, Eq b) => Either a b -> b -> IO ()
 shouldBeRight (Left x) _ = error "should be right"
@@ -191,15 +229,44 @@ shouldBeRight (Right x) y = x `shouldBe` y
 
 spec :: Spec
 spec =  do
-  describe "Prelude.head" $ do
-    it "returns the first element of a list" $ do
-      head [23 ..] `shouldBe` (23 :: Int)
+  describe "Unicode test"  $ do
+    it "should handle unicode characters appropriately" $ do
+      run programU goalU `shouldBeRight` [[熊]]
 
-    it "returns the first element of an *arbitrary* list" $
-      property $ \x xs -> head (x:xs) == (x :: Int)
+  describe "parser" $ do
+    it "should parse prolog programs" $ do
+      eeprog <- evalPrologT $ consult "test/queens.pl"
+      egoal  <- evalPrologT $ goal3 1
 
-    it "throws an exception if used with an empty list" $ do
-      evaluate (head []) `shouldThrow` anyException
+      case eeprog of
+        Left _  -> failure
+        Right eprog -> do  eterm  <- runIO (fromRight eprog) (fromRight egoal)
+                           length (fromRight eterm) `shouldBe` 1
+
+
+  describe "unicode parser" $ do
+    it "should parse unicode prolog programs" $ do
+      eeprog <- evalPrologT $ consult "test/unicode.pl"
+      egoal  <- evalPrologT $ do { x <- getFreeVar ; return [ atom "風呂場の漏水" ] }
+
+      case eeprog of
+        Left _  -> failure
+        Right eprog -> do  eterm  <- runIO (fromRight eprog) (fromRight egoal)
+                           length (fromRight eterm) `shouldBe` 0
+
+
+  describe "unicode parser" $ do
+    it "should parse and understand unicode programs" $ do
+      eeprog <- evalPrologT $ consult "test/unicode.pl"
+      egoal  <- evalPrologT $ do { x <- getFreeVar ; return [ struct "テスト" x  ] }
+
+      case eeprog of
+        Left _  -> failure
+        Right eprog -> do  eterm  <- runIO (fromRight eprog) (fromRight egoal)
+                           length (fromRight eterm) `shouldBe` 1
+
+
+
 
   describe "Program1 Goal1" $ do
     it "says a dark and big animal is a bear" $ do
@@ -238,34 +305,34 @@ spec =  do
 
   describe "n-queens" $ do
     it "says 0-queens has one solution" $ do
-      length (right (run program3 (goal3 0))) `shouldBe` 1
+      length (fromRight (run program3 (goal3 0))) `shouldBe` 1
 
     it "says 1-queens has one solution" $ do
-      length (right (run program3 (goal3 1))) `shouldBe` 1
+      length (fromRight (run program3 (goal3 1))) `shouldBe` 1
 
     it "says 2-queens has no solutions" $ do
-      length (right (run program3 (goal3 2))) `shouldBe` 0
+      length (fromRight (run program3 (goal3 2))) `shouldBe` 0
 
     it "says 3-queens has no solutions" $ do
-      length (right (run program3 (goal3 3))) `shouldBe` 0
+      length (fromRight (run program3 (goal3 3))) `shouldBe` 0
 
     it "says 4-queens has two solutions" $ do
-      length (right (run program3 (goal3 4))) `shouldBe` 2
+      length (fromRight (run program3 (goal3 4))) `shouldBe` 2
 
     it "says 5-queens has 10 solutions" $ do
-      length (right (run program3 (goal3 5))) `shouldBe` 10
+      length (fromRight (run program3 (goal3 5))) `shouldBe` 10
 
     it "says 6-queens has 4 solutions" $ do
-      length (right (run program3 (goal3 6))) `shouldBe` 4
+      length (fromRight (run program3 (goal3 6))) `shouldBe` 4
 
     -- Very slow( ~ 30s) , needs further optimization
     -- Or even implement the WAM
 
     -- it "says 7-queens has 40 solutions" $ do
-    --   length (right (run program3 (goal3 7))) `shouldBe` 40
+    --   length (fromRight (run program3 (goal3 7))) `shouldBe` 40
 
     -- it "says 8-queens has 40 solutions" $ do
-    --   length (right (run program3 (goal3 8))) `shouldBe` 92
+    --   length (fromRight (run program3 (goal3 8))) `shouldBe` 92
 
 
   describe "cons" $ do
@@ -286,12 +353,12 @@ spec =  do
       let goal = do [l,x,y,z] <- getFreeVars 4
                     return [ l |=| plist[ x,y,z] ,  member a l , member b l , member c l ]
 
-      length (right ( run program5 goal)) `shouldBe` 6
+      length (fromRight ( run program5 goal)) `shouldBe` 6
 
     it "can be used to generate lists of any length" $ do
       let goal = do [l,x,y,z,w] <- getFreeVars 5
                     return [ l |=| plist [x,y,z,w] ,  member a l , member b l , member c l , member d l]
-      length (right ( run program5 goal)) `shouldBe` 24
+      length (fromRight ( run program5 goal)) `shouldBe` 24
 
     it "can also be used to translate a list" $ do
       let pair = struct2 "pair"
@@ -317,7 +384,7 @@ spec =  do
     it "can also be used to generate sublists of a list" $ do
       let goal10 = do  [l1,l2] <- getFreeVars 2
                        return [ conc l1 l2 (plist [a,b,c]) ]
-      length (right $ run program9 goal10) `shouldBe` 4
+      length (fromRight $ run program9 goal10) `shouldBe` 4
 
     it "can also be used to split a list" $ do
       let months = ["jan","feb","mar","apr","may","jun","jul","aug","sep","oct","nov","dec"]
