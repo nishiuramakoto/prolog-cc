@@ -1,6 +1,6 @@
 module Language.Prolog2
-   ( Term(..), T(..) , atom, cons,nil
-   , Clause(..), rhs
+   ( Term, T(..) , atom, cons,nil
+   , Clause, rhs
    , UClause(..)
    , Atom,  Program, Goal , Failure , RuntimeError
    , PrologT

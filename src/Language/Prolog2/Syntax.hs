@@ -28,14 +28,16 @@ module Language.Prolog2.Syntax
 where
 
 #ifdef YESOD
-import Import hiding(cons,nil)
+import Import hiding(cons)
+import Data.Generics (Data(..))
 #else
 import Data.List (intercalate)
+import Data.Generics (Data(..), Typeable)
+import Data.Text(Text)
 #endif
 
+import qualified Data.Text as T
 import Data.List.Extras.Pair  (pairWith)
-import Data.Generics (Data(..), Typeable)
-
 import Data.Char (isLetter)
 -- import Data.Traversable
 -- import Data.Foldable(Foldable)
@@ -44,8 +46,7 @@ import Control.Unification.IntVar
 import Control.Unification.Types
 -- import Control.Monad.Except
 -- import Control.Applicative
-import Data.Text(Text)
-import qualified Data.Text as T
+
 
 data T a = TStruct Text [a]
          | TCut {-# UNPACK #-} !Int

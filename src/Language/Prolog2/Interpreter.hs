@@ -316,11 +316,11 @@ freshenClauses clauses = do
   return freshened
 
 countFreeVars :: (Functor m, Applicative m, Monad m) => Program -> PrologT m Int
-countFreeVars program = Prelude.maximum <$> Control.Monad.mapM count program
+countFreeVars program = Prelude.maximum <$> Control.Monad.mapM count' program
   where
-    count :: (Functor m, Applicative m, Monad m) => Clause -> PrologT m Int
-    count (UClause   _lhs rhs') = length <$> (PrologT $ lift $ getFreeVarsAll rhs')
-    count (UClauseFn _lhs _fn)  = return 2
+    count' :: (Functor m, Applicative m, Monad m) => Clause -> PrologT m Int
+    count' (UClause   _lhs rhs') = length <$> (PrologT $ lift $ getFreeVarsAll rhs')
+    count' (UClauseFn _lhs _fn)  = return 2
 
 
 updateNextFreeVar :: MonadState (IntBindingState t) m => Int -> m ()

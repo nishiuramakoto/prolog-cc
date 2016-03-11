@@ -27,10 +27,11 @@ module Control.Monad.State.UnificationExtras
 
 #ifdef YESOD
 import Import hiding(get)
-#endif
-
+#else
 import Control.Monad            (liftM)
 import Control.Monad.Reader     (Reader(), ReaderT(..))
+#endif
+
 import Control.Monad.State.Lazy (MonadState(..), State(), StateT(..))
 
 ----------------------------------------------------------------
