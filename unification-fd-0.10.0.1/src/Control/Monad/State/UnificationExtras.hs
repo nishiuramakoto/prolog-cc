@@ -26,7 +26,7 @@ module Control.Monad.State.UnificationExtras
     ) where
 
 #ifdef YESOD
-import Import hiding(get)
+import Import.NoFoundation hiding(get)
 #else
 import Control.Monad            (liftM)
 import Control.Monad.Reader     (Reader(), ReaderT(..))

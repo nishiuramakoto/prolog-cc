@@ -42,7 +42,7 @@ module Control.Monad.EitherK
     ) where
 
 #ifdef YESOD
-import Import
+import Import.NoFoundation
 #else
 import Control.Applicative
 import Control.Monad

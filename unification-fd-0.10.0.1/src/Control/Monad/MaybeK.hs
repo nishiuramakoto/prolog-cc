@@ -42,7 +42,7 @@ module Control.Monad.MaybeK
     ) where
 
 #ifdef YESOD
-import Import
+import Import.NoFoundation
 #else
 #if __GLASGOW_HASKELL__ < 710
 import Control.Applicative  (Applicative(..))

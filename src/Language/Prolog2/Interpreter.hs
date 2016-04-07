@@ -23,7 +23,7 @@ module Language.Prolog2.Interpreter
 where
 
 #ifdef YESOD
-import Import hiding(cons,trace,mapM_,sort,get, maximum)
+import Import.NoFoundation hiding(cons,trace,mapM_,sort,get, maximum)
 import qualified Prelude
 import Control.Monad.CC.CCCxe
 import Inquire

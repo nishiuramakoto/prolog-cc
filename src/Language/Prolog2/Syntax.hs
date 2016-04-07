@@ -28,7 +28,7 @@ module Language.Prolog2.Syntax
 where
 
 #ifdef YESOD
-import Import hiding(cons)
+import Import.NoFoundation hiding(cons)
 import Data.Generics (Data(..))
 #else
 import Data.List (intercalate)
