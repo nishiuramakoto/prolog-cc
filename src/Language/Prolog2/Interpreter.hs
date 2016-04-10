@@ -26,9 +26,11 @@ where
 import Import hiding(cons,trace,mapM_,sort,get, maximum)
 import qualified Prelude
 import Control.Monad.CC.CCCxe
+import Data.Typeable
 import CCGraph
 import Inquire
 import Form
+
 #endif
 
 import qualified Control.Monad
@@ -220,9 +222,10 @@ resolve st program goals = do
 ----------------  Yesod specific language extensions  ----------------
 #ifdef YESOD
       resolve'' st depth usf (UTerm (TStruct "inquire_bool" [query,v]):gs) stack = do
-        st'@(_, form) <- lift $ lift $ inquirePrologBool st query
-        let result = case form of
-              FormPrologInquireBoolForm (FormSuccess (PrologInquireBoolForm True))
+        st'@(CCState _ form) <- lift $ lift $ inquirePrologBool st query
+
+        let result = case cast form of
+              Just (FormSuccess (PrologInquireBoolForm True))
                 -> UTerm (TStruct "true" [])
               _ -> UTerm (TStruct "false" [])
         resolve'' st' depth usf ((UTerm (TStruct "=" [v, result])) : gs) stack
