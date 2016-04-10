@@ -23,10 +23,12 @@ module Language.Prolog2.Interpreter
 where
 
 #ifdef YESOD
-import Import.NoFoundation hiding(cons,trace,mapM_,sort,get, maximum)
+import Import hiding(cons,trace,mapM_,sort,get, maximum)
 import qualified Prelude
 import Control.Monad.CC.CCCxe
+import CCGraph
 import Inquire
+import Form
 #endif
 
 import qualified Control.Monad
@@ -147,17 +149,24 @@ builtins = do
 type Stack = [(IntBindingState T, [Goal], [Branch])]
 type Branch = (IntBindingState T, [Goal])
 
-
 #ifdef YESOD
-resolveToTerms ::  Program ->  [Goal] -> PrologT (CC (PS Html) Handler)  [[Term]]
+type UserState   = CCState
+type UserMonad   = CC CCP Handler
 #else
-resolveToTerms ::  Monad m => Program ->  [Goal] -> PrologT m  [[Term]]
+type UserState = ()
 #endif
-resolveToTerms program goals = do
-  -- vs <- PrologT $ lift ((join <$> Prelude.mapM (U.getFreeVars) goals)) -- :: IntBindingT T IO [IntVar]) :: PrologT [IntVar]
-  vs <- PrologT $ lift $ U.getFreeVarsAll goals
 
-  usfs <- resolve program goals
+-- TODO: Clean up those ugly ifdefs with a nifty type class
+#ifdef YESOD
+resolveToTerms ::  UserState ->  Program ->  [Goal] -> PrologT UserMonad  [[Term]]
+#else
+resolveToTerms ::  Monad m
+                   => UserState -> Program ->  [Goal] -> PrologT m  [[Term]]
+#endif
+
+resolveToTerms st program goals = do
+  vs <- PrologT $ lift $ U.getFreeVarsAll goals
+  usfs <- resolve st program goals
   Prelude.mapM (f (map UVar vs)) usfs
     where
       f :: (Functor m, Applicative m, Monad m) => [Term] -> IntBindingState T -> PrologT m [Term]
@@ -166,27 +175,28 @@ resolveToTerms program goals = do
 
 -- Yield all unifiers that resolve <goal> using the clauses from <program>.
 #ifdef YESOD
-resolve ::  Program ->  [Goal] -> PrologT (CC (PS Html) Handler) [IntBindingState T]
+resolve ::  UserState -> Program ->  [Goal] -> PrologT UserMonad [IntBindingState T]
 #else
-resolve ::  Monad m => Program ->  [Goal] -> PrologT m [IntBindingState T]
+resolve ::  Monad m  => UserState -> Program ->  [Goal] -> PrologT m [IntBindingState T]
 #endif
-resolve program goals = do
+
+resolve st program goals = do
   usf <- get
   bs  <- builtins
 
   numFreeVars <- countFreeVars (bs ++ program)
 
-  bindings <- runReaderT (resolve' 1 numFreeVars usf goals []) (createDB (bs ++ program) ["false","fail"])
+  bindings <- runReaderT (resolve' st 1 numFreeVars usf goals []) (createDB (bs ++ program) ["false","fail"])
   -- trace "Finished:"
   -- traceLn bindings
   return bindings
 
   where
 #ifdef YESOD
-    resolve' ::   Int -> Int -> IntBindingState T -> [Goal] -> Stack
-                    -> PrologDatabaseMonad (CC (PS Html) Handler)  [IntBindingState T]
+    resolve' ::  UserState -> Int -> Int -> IntBindingState T -> [Goal] -> Stack
+                 -> PrologDatabaseMonad UserMonad  [IntBindingState T]
 #else
-    resolve' ::   Monad m => Int -> Int -> IntBindingState T -> [Goal] -> Stack
+    resolve' ::   Monad m => UserState -> Int -> Int -> IntBindingState T -> [Goal] -> Stack
                     -> PrologDatabaseMonad m  [IntBindingState T]
 #endif
 
@@ -194,31 +204,32 @@ resolve program goals = do
       where
 
 #ifdef YESOD
-      resolve'' :: Int -> IntBindingState T -> [Goal] -> Stack
-                   -> PrologDatabaseMonad (CC (PS Html) Handler)  [IntBindingState T]
+      resolve'' :: UserState -> Int -> IntBindingState T -> [Goal] -> Stack
+                   -> PrologDatabaseMonad UserMonad  [IntBindingState T]
 #else
-      resolve'' :: Monad m => Int -> IntBindingState T -> [Goal] -> Stack
+      resolve'' :: Monad m => UserState -> Int -> IntBindingState T -> [Goal] -> Stack
                    -> PrologDatabaseMonad m  [IntBindingState T]
 #endif
 
-      resolve'' depth usf [] stack =  do
-        (usf:) <$> backtrack depth stack
+      resolve'' st depth usf [] stack =  do
+        (usf:) <$> backtrack st depth stack
 
-      resolve'' depth usf (UTerm (TCut n):gs) stack =  resolve'' depth usf gs (drop n stack)
+      resolve'' st depth usf (UTerm (TCut n):gs) stack =  resolve'' st depth usf gs (drop n stack)
 
 
 ----------------  Yesod specific language extensions  ----------------
 #ifdef YESOD
-      resolve'' depth usf (UTerm (TStruct "inquire_bool" [query,v]):gs) stack = do
-        (_klabel, form) <- lift $ lift $ inquirePrologBool query
+      resolve'' st depth usf (UTerm (TStruct "inquire_bool" [query,v]):gs) stack = do
+        st'@(_, form) <- lift $ lift $ inquirePrologBool st query
         let result = case form of
-              FormSuccess (PrologInquireBoolForm True) -> UTerm (TStruct "true" [])
-              _                                        -> UTerm (TStruct "false" [])
-        resolve'' depth usf ((UTerm (TStruct "=" [v, result])) : gs) stack
+              FormPrologInquireBoolForm (FormSuccess (PrologInquireBoolForm True))
+                -> UTerm (TStruct "true" [])
+              _ -> UTerm (TStruct "false" [])
+        resolve'' st' depth usf ((UTerm (TStruct "=" [v, result])) : gs) stack
 #endif
 ---------------------------------------------------------------------
 
-      resolve'' depth usf (nextGoal:gs) stack = do
+      resolve'' st depth usf (nextGoal:gs) stack = do
         -- traceLn $ "==resolve'=="
         -- traceLn $  ("usf:",usf)
         -- traceLn $  ("goals:",(nextGoal:gs))
@@ -231,9 +242,10 @@ resolve program goals = do
         branches <- getBranches usf' nextGoal gs
         -- traceLn $  ("branches:" , show $ length branches, branches)
 
-        choose depth usf gs branches stack
+        choose st depth usf gs branches stack
 
-      getBranches ::  (Functor m, Applicative m, Monad m) => IntBindingState T -> Goal -> [Goal] -> PrologDatabaseMonad m [Branch]
+      getBranches ::  Monad m
+                      => IntBindingState T -> Goal -> [Goal] -> PrologDatabaseMonad m [Branch]
       getBranches  usf (UVar n) gs = do
         nextGoal <- lift $ PrologT $ applyBindings (UVar n)
         case nextGoal of
@@ -251,7 +263,7 @@ resolve program goals = do
         -- trace "freshenedClauses:" >>  traceLn clauses'
 
           where
-            unifyM :: (Functor m, Applicative m, Monad m) => Clause -> PrologT m [Branch]
+            unifyM ::  Monad m => Clause -> PrologT m [Branch]
             unifyM clause = do
               put usf
               -- traceLn $ "CurrentBindings:"
@@ -282,27 +294,24 @@ resolve program goals = do
                   return [(usf', gs'')]
 
 #ifdef YESOD
-      choose :: Int -> IntBindingState T -> [Goal] -> [Branch] -> Stack
-             -> PrologDatabaseMonad (CC (PS Html) Handler) [IntBindingState T]
+      choose :: UserState -> Int -> IntBindingState T -> [Goal] -> [Branch] -> Stack
+             -> PrologDatabaseMonad UserMonad [IntBindingState T]
 #else
-      choose :: Monad m => Int -> IntBindingState T -> [Goal] -> [Branch] -> Stack
+      choose :: Monad m => UserState -> Int -> IntBindingState T -> [Goal] -> [Branch] -> Stack
              -> PrologDatabaseMonad m [IntBindingState T]
 #endif
 
-      choose  depth  _usf _gs  (_branches@[]) stack = backtrack depth stack
-      choose  depth   usf  gs ((u',gs'):alts) stack = resolve'' (succ depth) u' gs' ((usf,gs,alts) : stack)
+      choose  st depth  _usf _gs  (_branches@[]) stack = backtrack st depth stack
+      choose  st depth   usf  gs ((u',gs'):alts) stack = resolve'' st (succ depth) u' gs' ((usf,gs,alts) : stack)
+
 
 #ifdef YESOD
-      backtrack :: Int -> Stack -> PrologDatabaseMonad (CC (PS Html) Handler)  [ IntBindingState T ]
+      backtrack :: UserState -> Int -> Stack -> PrologDatabaseMonad UserMonad [ IntBindingState T ]
 #else
-      backtrack :: Monad m => Int -> Stack -> PrologDatabaseMonad m  [ IntBindingState T ]
+      backtrack :: Monad m => UserState -> Int -> Stack -> PrologDatabaseMonad m  [ IntBindingState T ]
 #endif
-      backtrack  _ []                  =   do
-        -- traceLn "backtracking an empty stack!"
-        return (fail "Goal cannot be resolved!")
-      backtrack  depth  ((u,gs,alts):stack) =   do
-        -- -- traceLn $ ("backtrack:" , ((u,gs,alts):stack))
-        choose (pred depth)   u gs alts stack
+      backtrack _  _ []                  =  return (fail "Goal cannot be resolved!")
+      backtrack st depth  ((u,gs,alts):stack) = choose st (pred depth)  u gs alts stack
 
 
 shiftCut :: T a -> T a
