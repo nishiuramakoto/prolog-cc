@@ -13,9 +13,6 @@ module Language.Prolog2.Trace where
 -- require icu libraries
 
 import Control.Monad.Reader
-import Control.Monad.State
-import Control.Monad.Except
-import Control.Monad.Identity
 import Control.Unification
 import Control.Unification.IntVar
 import Data.Text.ICU
@@ -23,7 +20,6 @@ import Data.Text.ICU.Replace
 import Data.Text(Text)
 import qualified Data.Text as T
 import qualified Data.Text.IO as T
-import Data.Maybe (isJust)
 import Language.Prolog2.Syntax
 
 class MonadIO m => Trace m a where
@@ -50,8 +46,8 @@ instance (MonadIO m, Trace m a, Trace m b,Trace m c,Trace m d) => Trace m (a,b,c
     trace (a,b,c,d) =  trace ("(" :: String) >> sepBy (trace ("," :: String)) ([trace a,trace b,trace c,trace d]) >> (trace (")" :: String))
 
 sepBy :: (MonadIO m ) => m () -> [m ()] -> m ()
-sepBy s [] = return ()
-sepBy s [m] = m
+sepBy _s [] = return ()
+sepBy _s [m] = m
 sepBy s (m:ms) = m >> s >> sepBy s ms
 
 instance MonadIO m => Trace m (IntBindingState T) where
@@ -75,12 +71,12 @@ instance (MonadIO m, Trace m a) => Trace m [a] where
   trace xs = mapM_ trace xs
 
 instance (MonadIO m) => Trace m (UClause Term) where
-  trace (UClause lhs rhs) = do trace lhs
-                               trace (" :- " :: String)
-                               trace  rhs
-                               traceStr "."
-  trace (UClauseFn lhs fn) = do trace lhs
-                                traceStr " :- <FUNCTION>."
+  trace (UClause lhs' rhs') = do trace lhs'
+                                 trace (" :- " :: String)
+                                 trace  rhs'
+                                 traceStr "."
+  trace (UClauseFn lhs' _fn) = do trace lhs'
+                                  traceStr " :- <FUNCTION>."
 
 traceStr :: MonadIO m => String -> m ()
 traceStr x = trace x

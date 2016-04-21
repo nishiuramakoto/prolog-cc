@@ -711,7 +711,7 @@ main2 = do
 
    putStrLn "Starting benchmark..."
 
-   let monad = (do { ps <- program2_1 ; gs <- goals2_1 ;  resolveToTerms ps gs })
+   let monad = (do { ps <- program2_1 ; gs <- goals2_1 ;  resolveToTerms () ps gs })
 
    qs <- evalPrologT $ monad
 
@@ -727,7 +727,7 @@ bench path gs = do
   parsed <- consult path
   case parsed of
        Left  err -> do  liftIO $ putStrLn $ show err
-       Right p   -> do  tss <- resolveToTerms p gs
+       Right p   -> do  tss <- resolveToTerms () p gs
                         liftIO $ putStrLn $ "number of solutions:" ++ show (length tss)
                         liftIO $ mapM_ putTerms tss
   where putTerms :: [Term] -> IO ()

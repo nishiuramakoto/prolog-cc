@@ -158,7 +158,7 @@ type UserMonad   = CC CCP Handler
 type UserState = ()
 #endif
 
--- TODO: Clean up those ugly ifdefs with a nifty type class
+-- TODO: Clean up those ugly ifdefs with some nifty type class
 #ifdef YESOD
 resolveToTerms ::  UserState ->  Program ->  [Goal] -> PrologT UserMonad  [[Term]]
 #else
@@ -169,6 +169,7 @@ resolveToTerms ::  Monad m
 resolveToTerms st program goals = do
   vs <- PrologT $ lift $ U.getFreeVarsAll goals
   usfs <- resolve st program goals
+  lift $ lift $ $(logInfo) $ T.pack $ "resolveToTerms: " ++ show usfs
   Prelude.mapM (f (map UVar vs)) usfs
     where
       f :: (Functor m, Applicative m, Monad m) => [Term] -> IntBindingState T -> PrologT m [Term]
@@ -218,6 +219,9 @@ resolve st program goals = do
 
       resolve'' st depth usf (UTerm (TCut n):gs) stack =  resolve'' st depth usf gs (drop n stack)
 
+
+      resolve'' st depth usf goals'@(UTerm (TStruct "asserta" [fact]):gs) stack = do
+         local (asserta fact) $ resolve'' st depth usf gs stack
 
 ----------------  Yesod specific language extensions  ----------------
 #ifdef YESOD

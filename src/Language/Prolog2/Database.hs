@@ -7,6 +7,7 @@ module Language.Prolog2.Database
    ( createDB
    , hasPredicate
    , getClauses
+   , asserta
    , Signature(), signature
    , Database(..)
    )
@@ -51,3 +52,6 @@ createDB clauses emptyPredicates = DB $
 
 getClauses :: Term -> Database -> [Clause]
 getClauses term (DB index) = maybe [] id $ Map.lookup (signature term) index
+
+asserta :: Term -> Database -> Database
+asserta fact (DB index') = DB $ Map.insertWith (++)  (signature fact) [UClause fact []] index'
