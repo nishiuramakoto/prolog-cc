@@ -154,9 +154,12 @@ type Branch = (IntBindingState T, [Goal])
 #ifdef YESOD
 type UserState   = CCState
 type UserMonad   = CC CCP Handler
+trace = lift . lift . lift . $logInfo . T.pack
 #else
 type UserState = ()
 #endif
+
+
 
 -- TODO: Clean up those ugly ifdefs with some nifty type class
 #ifdef YESOD
@@ -227,20 +230,24 @@ resolve st program goals = do
 #ifdef YESOD
       resolve'' st depth usf (UTerm (TStruct "inquire_bool" [query,v]):gs) stack = do
         st'@(CCState _ form) <- lift $ lift $ inquirePrologBool st query
+        -- lift $ lift $ lift $ $logInfo $ T.pack $ show form
+        let result = case form of
+              Just (CCFormResult form') ->  case cast form' of
+                Just (FormSuccess (PrologInquireBoolForm True))
+                  -> UTerm (TStruct "true" [])
+                _ -> UTerm (TStruct "false" [])
+              Nothing -> UTerm (TStruct "false" [])
 
-        let result = case cast form of
-              Just (FormSuccess (PrologInquireBoolForm True))
-                -> UTerm (TStruct "true" [])
-              _ -> UTerm (TStruct "false" [])
+
         resolve'' st' depth usf ((UTerm (TStruct "=" [v, result])) : gs) stack
 #endif
 ---------------------------------------------------------------------
 
       resolve'' st depth usf (nextGoal:gs) stack = do
-        -- traceLn $ "==resolve'=="
-        -- traceLn $  ("usf:",usf)
-        -- traceLn $  ("goals:",(nextGoal:gs))
-        -- traceLn $  ("stack:", stack)
+        -- trace $ show $ "==resolve'=="
+        -- trace $ show $  ("usf:",usf)
+        -- trace $ show $  ("goals:",(nextGoal:gs))
+        -- trace $ show $  ("stack:", stack)
 
         put usf
         updateNextFreeVar depth
