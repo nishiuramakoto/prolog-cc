@@ -267,7 +267,7 @@ goals10 = do
   [l1,l2] <- getFreeVars 2
   return [ conc l1 l2 (plist [a,b,c]) ]
 
-----------------------------  Program 10  ----------------------------
+----------------------------  Program 11  ----------------------------
 program11 :: PrologT IO Program
 program11 = program9
 goals11 :: PrologT IO [Goal]
@@ -711,7 +711,8 @@ main2 = do
 
    putStrLn "Starting benchmark..."
 
-   let monad = (do { ps <- program2_1 ; gs <- goals2_1 ;  resolveToTerms ps gs })
+   let monad = (do { ps <- program2_1 ; gs <- goals2_1 ;  resolveToTerms () ps gs })
+   -- let monad = (do { ps <- program3 ; gs <- goals3 ;  resolveToTerms () ps gs })
 
    qs <- evalPrologT $ monad
 
@@ -727,7 +728,7 @@ bench path gs = do
   parsed <- consult path
   case parsed of
        Left  err -> do  liftIO $ putStrLn $ show err
-       Right p   -> do  tss <- resolveToTerms p gs
+       Right p   -> do  tss <- resolveToTerms () p gs
                         liftIO $ putStrLn $ "number of solutions:" ++ show (length tss)
                         liftIO $ mapM_ putTerms tss
   where putTerms :: [Term] -> IO ()

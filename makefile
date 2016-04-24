@@ -1,8 +1,19 @@
 BENCH=dist/build/bench/bench
 BENCH2=dist/build/bench2/bench2
 
+.PHONY: push set-remote test tests shell bench pl docs coverage
 
-.PHONY: test tests shell bench pl docs coverage
+all : set-remote
+
+set-remote: push
+	git remote set-url origin http://aki23b.ddns.net/git/prolog-fd.git
+
+push :
+	git remote set-url origin /mnt/debian/var/www/git/prolog-fd.git && \
+	git push --all origin
+
+####################################################################
+
 
 test : bench2
 

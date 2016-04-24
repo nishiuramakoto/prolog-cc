@@ -24,6 +24,4 @@ selectq(X,[Y|Ys],[Y|Zs]) :- selectq(X,Ys,Zs).
 rangeList2(M,N,[M]) :- M >= N.
 rangeList2(M,N,[M|Tail]) :- M < N , M1 is M+1 , rangeList2(M1,N,Tail).
 
-goal(Qs) :- queens(7,Qs).
-
-goal:- goal(Qs).
+goal(Qs) :- queens(6,Qs).

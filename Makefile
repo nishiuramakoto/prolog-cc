@@ -1,0 +1,3 @@
+
+test :
+	cabal test

@@ -41,13 +41,21 @@ module Control.Monad.EitherK
     , catchEitherKT
     ) where
 
+#ifdef YESOD
+import Import.NoFoundation
+#else
+import Control.Applicative
+import Control.Monad
+import Control.Monad.Trans
+#endif
+
 #if __GLASGOW_HASKELL__ < 710
 import Data.Monoid          (Monoid(..))
 import Control.Applicative  (Applicative(..))
 #endif
-import Control.Applicative  (Alternative(..))
-import Control.Monad        (MonadPlus(..), ap)
-import Control.Monad.Trans  (MonadTrans(..))
+-- import Control.Applicative  (Alternative(..))
+-- import Control.Monad        (MonadPlus(..), ap)
+-- import Control.Monad.Trans  (MonadTrans(..))
 #if (MIN_VERSION_mtl(2,2,1))
 -- aka: transformers(0,4,1)
 import Control.Monad.Except (MonadError(..))

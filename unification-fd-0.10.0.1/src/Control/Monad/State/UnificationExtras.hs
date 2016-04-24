@@ -25,8 +25,13 @@ module Control.Monad.State.UnificationExtras
     , localState
     ) where
 
+#ifdef YESOD
+import Import.NoFoundation hiding(get)
+#else
 import Control.Monad            (liftM)
 import Control.Monad.Reader     (Reader(), ReaderT(..))
+#endif
+
 import Control.Monad.State.Lazy (MonadState(..), State(), StateT(..))
 
 ----------------------------------------------------------------

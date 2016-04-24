@@ -1,4 +1,4 @@
-module Language.Prolog2
+module Language.Prolog2.IO
    ( Term, T(..) , atom, cons,nil
    , Clause, rhs
    , UClause(..)
@@ -16,6 +16,6 @@ where
 
 import Language.Prolog2.Parser
 -- import Quote2
-import Language.Prolog2.Interpreter
+import Language.Prolog2.InterpreterIO
 import Language.Prolog2.Syntax
 import Text.Parsec

@@ -41,12 +41,20 @@ module Control.Monad.MaybeK
     , lowerMaybeK
     ) where
 
+#ifdef YESOD
+import Import.NoFoundation
+#else
+
 #if __GLASGOW_HASKELL__ < 710
 import Control.Applicative  (Applicative(..))
-#endif
+#else
 import Control.Applicative  (Alternative(..))
+#endif
 import Control.Monad        (MonadPlus(..), ap)
 import Control.Monad.Trans  (MonadTrans(..))
+#endif
+
+
 #if (MIN_VERSION_mtl(2,2,1))
 -- aka: transformers(0,4,1)
 import Control.Monad.Except (MonadError(..))
