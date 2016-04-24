@@ -11,6 +11,19 @@
   , OverloadedStrings
   , CPP
   #-}
+
+#ifdef YESOD_INTERPRETER_IO
+module Language.Prolog2.InterpreterIO
+   ( resolve
+   , resolveToTerms
+   , PrologT
+   , runPrologT , evalPrologT, execPrologT
+   , getFreeVar , getFreeVars
+   , RuntimeError
+   , NonUnificationError(..)
+   )  where
+
+#else
 module Language.Prolog2.Interpreter
    ( resolve
    , resolveToTerms
@@ -19,10 +32,16 @@ module Language.Prolog2.Interpreter
    , getFreeVar , getFreeVars
    , RuntimeError
    , NonUnificationError(..)
-   )
-where
+   )  where
+#endif
 
-#ifdef YESOD
+
+
+#ifdef YESOD_INTERPRETER_IO
+import Import hiding(cons,trace,mapM_,sort,get, maximum)
+import qualified Prelude
+
+#elif defined YESOD
 import Import hiding(cons,trace,mapM_,sort,get, maximum)
 import qualified Prelude
 import Control.Monad.CC.CCCxe
@@ -30,8 +49,9 @@ import Data.Typeable
 import CCGraph
 import Inquire
 import Form
-
 #endif
+
+-----------------------------------------------------------------------------------------------
 
 import qualified Control.Monad
 -- import Control.Exception.Base
@@ -52,6 +72,17 @@ import Language.Prolog2.Syntax
 import Language.Prolog2.Database
 
 -- import Language.Prolog2.Trace
+
+#ifdef YESOD
+#define CONTEXT   ()
+#define USERMONAD (CC CCP Handler)
+type UserState   = CCState
+trace = lift . lift . lift . $logInfo . T.pack
+#else
+#define CONTEXT    (Monad m)
+#define USERMONAD  m
+type UserState = ()
+#endif
 
 
 data NonUnificationError = InstantiationError Term
@@ -151,28 +182,15 @@ builtins = do
 type Stack = [(IntBindingState T, [Goal], [Branch])]
 type Branch = (IntBindingState T, [Goal])
 
-#ifdef YESOD
-type UserState   = CCState
-type UserMonad   = CC CCP Handler
-trace = lift . lift . lift . $logInfo . T.pack
-#else
-type UserState = ()
-#endif
 
 
 
--- TODO: Clean up those ugly ifdefs with some nifty type class
-#ifdef YESOD
-resolveToTerms ::  UserState ->  Program ->  [Goal] -> PrologT UserMonad  [[Term]]
-#else
-resolveToTerms ::  Monad m
-                   => UserState -> Program ->  [Goal] -> PrologT m  [[Term]]
-#endif
-
+-- TODO: Clean up those ugly macros with some nifty type class
+resolveToTerms ::  CONTEXT =>  UserState ->  Program ->  [Goal] -> PrologT USERMONAD  [[Term]]
 resolveToTerms st program goals = do
   vs <- PrologT $ lift $ U.getFreeVarsAll goals
   usfs <- resolve st program goals
-  lift $ lift $ $(logInfo) $ T.pack $ "resolveToTerms: " ++ show usfs
+  -- lift $ lift $ $(logInfo) $ T.pack $ "resolveToTerms: " ++ show usfs
   Prelude.mapM (f (map UVar vs)) usfs
     where
       f :: (Functor m, Applicative m, Monad m) => [Term] -> IntBindingState T -> PrologT m [Term]
@@ -180,55 +198,39 @@ resolveToTerms st program goals = do
                     PrologT $ Prelude.mapM applyBindings vs
 
 -- Yield all unifiers that resolve <goal> using the clauses from <program>.
-#ifdef YESOD
-resolve ::  UserState -> Program ->  [Goal] -> PrologT UserMonad [IntBindingState T]
-#else
-resolve ::  Monad m  => UserState -> Program ->  [Goal] -> PrologT m [IntBindingState T]
-#endif
-
+resolve ::  CONTEXT  => UserState -> Program ->  [Goal] -> PrologT (USERMONAD) [IntBindingState T]
 resolve st program goals = do
   usf <- get
   bs  <- builtins
 
   numFreeVars <- countFreeVars (bs ++ program)
 
-  bindings <- runReaderT (resolve' st 1 numFreeVars usf goals []) (createDB (bs ++ program) ["false","fail"])
-  -- trace "Finished:"
-  -- traceLn bindings
+  bindings <- runReaderT (resolveWithDatabase st 1 numFreeVars usf goals [])
+              (createDB (bs ++ program) ["false","fail"])
   return bindings
 
+
+resolveWithDatabase ::  CONTEXT  => UserState -> Int -> Int -> IntBindingState T -> [Goal] -> Stack
+                        -> PrologDatabaseMonad (USERMONAD)  [IntBindingState T]
+resolveWithDatabase  depth nf usf_ gs_ stack_ = resolve'' depth nf usf_ gs_ stack_
   where
-#ifdef YESOD
-    resolve' ::  UserState -> Int -> Int -> IntBindingState T -> [Goal] -> Stack
-                 -> PrologDatabaseMonad UserMonad  [IntBindingState T]
-#else
-    resolve' ::   Monad m => UserState -> Int -> Int -> IntBindingState T -> [Goal] -> Stack
-                    -> PrologDatabaseMonad m  [IntBindingState T]
-#endif
 
-    resolve' depth_ _nf usf_ gs_ stack_ = resolve'' depth_ usf_ gs_ stack_
-      where
+      resolve'' :: CONTEXT => UserState -> Int -> Int -> IntBindingState T -> [Goal] -> Stack
+                   -> PrologDatabaseMonad (USERMONAD)  [IntBindingState T]
 
-#ifdef YESOD
-      resolve'' :: UserState -> Int -> IntBindingState T -> [Goal] -> Stack
-                   -> PrologDatabaseMonad UserMonad  [IntBindingState T]
-#else
-      resolve'' :: Monad m => UserState -> Int -> IntBindingState T -> [Goal] -> Stack
-                   -> PrologDatabaseMonad m  [IntBindingState T]
-#endif
+      resolve'' st depth nf usf [] stack =  do
+        (usf:) <$> backtrack st depth nf stack
 
-      resolve'' st depth usf [] stack =  do
-        (usf:) <$> backtrack st depth stack
-
-      resolve'' st depth usf (UTerm (TCut n):gs) stack =  resolve'' st depth usf gs (drop n stack)
+      resolve'' st depth nf usf (UTerm (TCut n):gs) stack =  resolve'' st depth nf usf gs (drop n stack)
 
 
-      resolve'' st depth usf goals'@(UTerm (TStruct "asserta" [fact]):gs) stack = do
-         local (asserta fact) $ resolve'' st depth usf gs stack
+      resolve'' st depth nf  usf goals'@(UTerm (TStruct "asserta" [fact]):gs) stack = do
+        nf' <- lift $ countFreeVars [UClause fact [] ]
+        local (asserta fact) $ resolve'' st depth (max nf nf')  usf gs stack
 
 ----------------  Yesod specific language extensions  ----------------
 #ifdef YESOD
-      resolve'' st depth usf (UTerm (TStruct "inquire_bool" [query,v]):gs) stack = do
+      resolve'' st depth nf usf (UTerm (TStruct "inquire_bool" [query,v]):gs) stack = do
         st'@(CCState _ form) <- lift $ lift $ inquirePrologBool st query
         -- lift $ lift $ lift $ $logInfo $ T.pack $ show form
         let result = case form of
@@ -239,27 +241,26 @@ resolve st program goals = do
               Nothing -> UTerm (TStruct "false" [])
 
 
-        resolve'' st' depth usf ((UTerm (TStruct "=" [v, result])) : gs) stack
+        resolve'' st' depth nf usf ((UTerm (TStruct "=" [v, result])) : gs) stack
 #endif
 ---------------------------------------------------------------------
 
-      resolve'' st depth usf (nextGoal:gs) stack = do
+      resolve'' st depth nf usf (nextGoal:gs) stack = do
         -- trace $ show $ "==resolve'=="
         -- trace $ show $  ("usf:",usf)
         -- trace $ show $  ("goals:",(nextGoal:gs))
         -- trace $ show $  ("stack:", stack)
 
         put usf
-        updateNextFreeVar depth
+        updateNextFreeVar depth nf
 
         usf' <- get
         branches <- getBranches usf' nextGoal gs
         -- traceLn $  ("branches:" , show $ length branches, branches)
 
-        choose st depth usf gs branches stack
+        choose st depth nf usf gs branches stack
 
-      getBranches ::  Monad m
-                      => IntBindingState T -> Goal -> [Goal] -> PrologDatabaseMonad m [Branch]
+      getBranches ::  Monad m => IntBindingState T -> Goal -> [Goal] -> PrologDatabaseMonad m [Branch]
       getBranches  usf (UVar n) gs = do
         nextGoal <- lift $ PrologT $ applyBindings (UVar n)
         case nextGoal of
@@ -307,25 +308,16 @@ resolve st program goals = do
                   usf' <- get
                   return [(usf', gs'')]
 
-#ifdef YESOD
-      choose :: UserState -> Int -> IntBindingState T -> [Goal] -> [Branch] -> Stack
-             -> PrologDatabaseMonad UserMonad [IntBindingState T]
-#else
-      choose :: Monad m => UserState -> Int -> IntBindingState T -> [Goal] -> [Branch] -> Stack
-             -> PrologDatabaseMonad m [IntBindingState T]
-#endif
-
-      choose  st depth  _usf _gs  (_branches@[]) stack = backtrack st depth stack
-      choose  st depth   usf  gs ((u',gs'):alts) stack = resolve'' st (succ depth) u' gs' ((usf,gs,alts) : stack)
+      choose :: CONTEXT => UserState -> Int -> Int -> IntBindingState T -> [Goal] -> [Branch] -> Stack
+             -> PrologDatabaseMonad (USERMONAD) [IntBindingState T]
+      choose  st depth  nf _usf _gs  (_branches@[]) stack = backtrack st depth nf stack
+      choose  st depth  nf usf  gs ((u',gs'):alts)  stack = resolve'' st (succ depth) nf u' gs' ((usf,gs,alts) : stack)
 
 
-#ifdef YESOD
-      backtrack :: UserState -> Int -> Stack -> PrologDatabaseMonad UserMonad [ IntBindingState T ]
-#else
-      backtrack :: Monad m => UserState -> Int -> Stack -> PrologDatabaseMonad m  [ IntBindingState T ]
-#endif
-      backtrack _  _ []                  =  return (fail "Goal cannot be resolved!")
-      backtrack st depth  ((u,gs,alts):stack) = choose st (pred depth)  u gs alts stack
+      backtrack :: CONTEXT => UserState -> Int -> Int -> Stack
+                           -> PrologDatabaseMonad (USERMONAD) [ IntBindingState T ]
+      backtrack _  _ _ []                  =  return (fail "Goal cannot be resolved!")
+      backtrack st depth nf  ((u,gs,alts):stack) = choose st (pred depth) nf  u gs alts stack
 
 
 shiftCut :: T a -> T a
@@ -342,12 +334,15 @@ countFreeVars :: (Functor m, Applicative m, Monad m) => Program -> PrologT m Int
 countFreeVars program = Prelude.maximum <$> Control.Monad.mapM count' program
   where
     count' :: (Functor m, Applicative m, Monad m) => Clause -> PrologT m Int
-    count' (UClause   _lhs rhs') = length <$> (PrologT $ lift $ getFreeVarsAll rhs')
-    count' (UClauseFn _lhs _fn)  = return 2
+    count' (UClause   lhs rhs') = do rvs <- PrologT $ lift $ getFreeVarsAll rhs'
+                                     lvs <- PrologT $ lift $ getFreeVarsAll [lhs]
+                                     return $ length rvs + length lvs
+    count' (UClauseFn lhs _fn)  = do lvs <- PrologT $ lift $ getFreeVarsAll [lhs]
+                                     return $ 2 + length lvs
 
 
-updateNextFreeVar :: MonadState (IntBindingState t) m => Int -> m ()
-updateNextFreeVar depth  =
+updateNextFreeVar :: MonadState (IntBindingState t) m => Int -> Int -> m ()
+updateNextFreeVar depth nf  =
   modify (\s -> case s of
             IntBindingState nextFreeVar' varBindings' ->
-              IntBindingState (nextFreeVar' + 4096 * depth) varBindings' )
+              IntBindingState (nextFreeVar' +  nf + 1024  ) varBindings' )

@@ -712,6 +712,7 @@ main2 = do
    putStrLn "Starting benchmark..."
 
    let monad = (do { ps <- program2_1 ; gs <- goals2_1 ;  resolveToTerms () ps gs })
+   -- let monad = (do { ps <- program3 ; gs <- goals3 ;  resolveToTerms () ps gs })
 
    qs <- evalPrologT $ monad
 
