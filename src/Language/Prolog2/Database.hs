@@ -1,10 +1,13 @@
 {-# LANGUAGE
     TypeFamilies,
-    ScopedTypeVariables
+    ScopedTypeVariables,
+    DeriveTraversable
   #-}
 
 module Language.Prolog2.Database
    ( createDB
+   , insertProgram
+   , empty
    , hasPredicate
    , getClauses
    , asserta
@@ -39,7 +42,13 @@ signature (UTerm (TStruct name ts)) =  Just (Signature name (length ts))
 signature  _  = Nothing
 
 
-newtype Database = DB (Map (Maybe Signature) [Clause])
+newtype DatabaseT a = DB (Map (Maybe Signature) a)
+                      deriving (Foldable, Traversable, Functor)
+type Database = DatabaseT [Clause]
+
+
+empty :: Database
+empty = DB Map.empty
 
 hasPredicate :: Signature -> Database -> Bool
 hasPredicate sig (DB index) = Map.member (Just sig) index
@@ -49,6 +58,12 @@ createDB clauses emptyPredicates = DB $
    foldr (\clause  -> Map.insertWith' (++) (signature (lhs clause)) [clause])
          (Map.fromList [ (signature (UTerm (TStruct name [])), []) | name <- emptyPredicates ])
          clauses
+
+insertProgram :: Foldable t => t (UClause Term) -> Database -> Database
+insertProgram clauses (DB db) = DB $
+   foldr (\clause  -> Map.insertWith' (++) (signature (lhs clause)) [clause])
+   db
+   clauses
 
 getClauses :: Term -> Database -> [Clause]
 getClauses term (DB index) = maybe [] id $ Map.lookup (signature term) index
