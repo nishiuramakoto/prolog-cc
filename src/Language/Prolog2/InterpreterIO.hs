@@ -38,6 +38,7 @@ import Language.Prolog2.Types
 import Language.Prolog2.Syntax
 import qualified Language.Prolog2.Database as DB
 import Language.Prolog2.InterpreterCommon
+import Language.Prolog2.Builtins
 
 -- import Language.Prolog2.Trace
 
@@ -59,6 +60,7 @@ resolveToTerms st program goals = do
 
 resolve ::  Monad m  => UserState -> Program ->  [Goal] -> PrologT m [IntBindingState T]
 resolve st program goals = do
+
   usf <- get
   bs  <- builtins
 

@@ -55,9 +55,11 @@ trace = lift . lift . lift . $logInfo . T.pack
 
 resolveToTerms ::  UserState ->  Program ->  [Goal] -> CCPrologHandler   [[Term]]
 resolveToTerms st program goals = do
+  db <- ask
+  -- $(logInfo) $ T.pack $ "resolveToTerms: " ++ show (DB.size db)
+
   vs <- liftProlog $ PrologT $ lift $ U.getFreeVarsAll goals
   usfs <- resolve st program goals
-  -- lift $ lift $ $(logInfo) $ T.pack $ "resolveToTerms: " ++ show usfs
   Prelude.mapM (f (map UVar vs)) usfs
     where
       f :: [Term] -> IntBindingState T -> CCPrologHandler  [Term]
@@ -75,9 +77,12 @@ resolveWithDatabase ::  UserState -> Int -> [Goal] -> Stack
 resolveWithDatabase  st depth goals stack = do
   db <- ask
   usf <- get
+  -- $(logInfo) $ T.pack $ "resolveWithDatabase: " ++ (show $ DB.size db)
   numFreeVars <- liftProlog $ countFreeVars db
-  resolve'' st depth numFreeVars usf goals stack
-
+  -- $(logInfo) $ T.pack $ "resolveWithDatabase: " ++ show numFreeVars
+  bindings <- resolve'' st depth numFreeVars usf goals stack
+  -- $(logInfo) $ T.pack $ "resolveWithDatabase: " ++ show numFreeVars
+  return bindings
 
 resolve'' ::  UserState -> Int -> Int -> IntBindingState T -> [Goal] -> Stack
               -> CCPrologHandler   [IntBindingState T]
@@ -89,22 +94,25 @@ resolve'' st depth nf usf (UTerm (TCut n):gs) stack =  resolve'' st depth nf usf
 
 
 resolve'' st depth nf  usf goals'@(UTerm (TStruct "asserta" [fact]):gs) stack = do
-        nf' <- liftProlog $ countFreeVars [[UClause fact [] ]]
-        local (DB.asserta fact) $  resolve'' st depth (max nf nf')  usf gs stack
+  -- $(logInfo) $ T.pack $ "asserta "
+
+  nf' <- liftProlog $ countFreeVars [[UClause fact [] ]]
+  local (DB.asserta fact) $  resolve'' st depth (max nf nf')  usf gs stack
 
 ----------------  Yesod specific language extensions  ----------------
 resolve'' st depth nf usf (UTerm (TStruct "inquire_bool" [query,v]):gs) stack = do
-        st'@(CCState _ form) <-  inquirePrologBool st query
-        -- lift $ lift $ lift $ $logInfo $ T.pack $ show form
-        let result = case form of
+  -- $logInfo "resolve''"
+  st'@(CCState _ form) <-  inquirePrologBool st query
+
+  let result = case form of
               Just (CCFormResult form') ->  case cast form' of
                 Just (FormSuccess (PrologInquireBoolForm True))
                   -> UTerm (TStruct "true" [])
                 _ -> UTerm (TStruct "false" [])
               Nothing -> UTerm (TStruct "false" [])
 
-
-        resolve'' st' depth nf usf ((UTerm (TStruct "=" [v, result])) : gs) stack
+  -- $logInfo "resolve''"
+  resolve'' st' depth nf usf ((UTerm (TStruct "=" [v, result])) : gs) stack
 ---------------------------------------------------------------------
 
 resolve'' st depth nf usf (nextGoal:gs) stack = do
@@ -112,14 +120,13 @@ resolve'' st depth nf usf (nextGoal:gs) stack = do
         -- trace $ show $  ("usf:",usf)
         -- trace $ show $  ("goals:",(nextGoal:gs))
         -- trace $ show $  ("stack:", stack)
-
+  -- $logInfo $ T.pack $ "resolve''" ++ show nf
   put usf
   updateNextFreeVar depth nf
-
   usf' <- get
+  -- $logInfo $ T.pack $ "resolve''" ++ show nf
   branches <- CCPrologT $ lift $ getBranches usf' nextGoal gs
-        -- traceLn $  ("branches:" , show $ length branches, branches)
-
+  -- $logInfo $ T.pack $ "resolve''" ++ show nf
   choose st depth nf usf gs branches stack
 
 choose :: UserState -> Int -> Int -> IntBindingState T -> [Goal] -> [Branch] -> Stack

@@ -8,6 +8,7 @@ module Language.Prolog2.Database
    ( createDB
    , insertProgram
    , empty
+   , size
    , hasPredicate
    , getClauses
    , asserta
@@ -49,6 +50,9 @@ type Database = DatabaseT [Clause]
 
 empty :: Database
 empty = DB Map.empty
+
+size :: Database -> Int
+size (DB db) = Map.size db
 
 hasPredicate :: Signature -> Database -> Bool
 hasPredicate sig (DB index) = Map.member (Just sig) index
