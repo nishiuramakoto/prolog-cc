@@ -69,7 +69,7 @@ resolveToTerms st program goals = do
 
 -- Yield all unifiers that resolve <goal> using the clauses from <program>.
 resolve ::  ()       => UserState -> Program ->  [Goal] -> CCPrologHandler  [IntBindingState T]
-resolve st@(CCState node _)  program goals = do
+resolve st  program goals = do
   local (DB.insertProgram  program) (resolveWithDatabase st 1 goals [])
 
 resolveWithDatabase ::  UserState -> Int -> [Goal] -> Stack
@@ -102,14 +102,14 @@ resolve'' st depth nf  usf goals'@(UTerm (TStruct "asserta" [fact]):gs) stack = 
 ----------------  Yesod specific language extensions  ----------------
 resolve'' st depth nf usf (UTerm (TStruct "inquire_bool" [query,v]):gs) stack = do
   -- $logInfo "resolve''"
-  st'@(CCState _ form) <-  inquirePrologBool st query
+  st' <-  inquirePrologBool st query
 
-  let result = case form of
-              Just (CCFormResult form') ->  case cast form' of
-                Just (FormSuccess (PrologInquireBoolForm True))
-                  -> UTerm (TStruct "true" [])
-                _ -> UTerm (TStruct "false" [])
-              Nothing -> UTerm (TStruct "false" [])
+  let result = case ccsCurrentForm st' of
+        CCFormResult form' ->  case cast form' of
+          Just (FormSuccess (PrologInquireBoolForm True))
+            -> UTerm (TStruct "true" [])
+          _ -> UTerm (TStruct "false" [])
+          Nothing -> UTerm (TStruct "false" [])
 
   -- $logInfo "resolve''"
   resolve'' st' depth nf usf ((UTerm (TStruct "=" [v, result])) : gs) stack
