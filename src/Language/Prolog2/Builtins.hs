@@ -37,8 +37,11 @@ builtins = do
          , UClauseFn (UTerm (TStruct ">="  [x4, y4])) (binaryIntegerPredicate (>=))
          , UClauseFn (UTerm (TStruct "=:=" [x5, y5])) (binaryIntegerPredicate (==))
          , UClauseFn (UTerm (TStruct "=\\=" [c,d])) (binaryIntegerPredicate (/=))
+
          ]
   where
+
+
     binaryIntegerPredicate :: (Integer -> Integer -> Bool) -> ([Term] -> [Goal])
     binaryIntegerPredicate p [eval->Just n, eval->Just m] | n `p` m = []
     binaryIntegerPredicate _p _ = [ UTerm $ TStruct "false" []]
@@ -55,6 +58,7 @@ builtins = do
     eval (UTerm (TStruct "mod" [t1, t2]))       = mod <$> eval t1 <*> eval t2
     eval (UTerm (TStruct "-" [t]))              = negate <$> eval t
     eval _                        = mzero
+
 
 
 createBuiltinDatabase :: Monad m => PrologT m Database

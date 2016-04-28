@@ -49,11 +49,11 @@ newtype PrologT m a = PrologT { unPrologT :: ExceptT RuntimeError (IntBindingT T
                                  , MonadState (IntBindingState T)
                                  , MonadError RuntimeError
                                  )
-newtype PrologDatabaseT m a = PrologDatabaseT { unPrologDatabaseT :: ReaderT Database (PrologT m) a }
+newtype PrologDatabaseT  m a = PrologDatabaseT { unPrologDatabaseT :: ReaderT Database (PrologT m) a }
                               deriving (Functor
                                        , Applicative
                                        , Monad
-                                       , MonadReader Database
+                                       , MonadReader (Database)
                                        , MonadState  (IntBindingState T)
                                        , MonadError  RuntimeError
                                        )
@@ -73,7 +73,7 @@ instance MonadTrans PrologT where
 instance MonadIO m => MonadIO (PrologT m) where
   liftIO = lift . liftIO
 
-instance MonadTrans PrologDatabaseT where
+instance MonadTrans (PrologDatabaseT) where
   lift  m =  PrologDatabaseT (lift $ lift m)
 
 
@@ -91,16 +91,18 @@ evalPrologT = evalIntBindingT . runExceptT . unPrologT
 execPrologT :: Monad m => PrologT m a -> m (IntBindingState T)
 execPrologT = execIntBindingT . runExceptT . unPrologT
 
-runPrologDatabaseT :: Monad m => PrologDatabaseT m a -> Database
+runPrologDatabaseT :: Monad m => PrologDatabaseT  m a -> Database
                       -> m (Either RuntimeError a, IntBindingState T)
 runPrologDatabaseT p d = runPrologT $ runReaderT (unPrologDatabaseT p) d
 
-evalPrologDatabaseT :: Monad m => PrologDatabaseT m a -> Database
+evalPrologDatabaseT :: Monad m => PrologDatabaseT  m a -> Database
                        -> m (Either RuntimeError a)
 evalPrologDatabaseT p d = evalPrologT $ runReaderT (unPrologDatabaseT p) d
 
-execPrologDatabaseT :: Monad m => PrologDatabaseT m a -> Database
+execPrologDatabaseT :: Monad m => PrologDatabaseT  m a -> Database
                        -> m (IntBindingState T)
 execPrologDatabaseT p d = execPrologT $ runReaderT (unPrologDatabaseT p) d
+
+
 
 -------------------------------------------------------------------------

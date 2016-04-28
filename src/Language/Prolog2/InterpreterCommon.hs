@@ -22,6 +22,17 @@ import Language.Prolog2.Syntax
 import Language.Prolog2.Database(Database)
 import qualified Language.Prolog2.Database as DB
 
+type Stack = [(IntBindingState T, [Goal], [Branch])]
+type Branch = (IntBindingState T, [Goal])
+
+type ResolverT state m = state -> Int -> Int -> IntBindingState T -> [Goal] -> Stack -> DatabaseM state m
+                         -> m [IntBindingState T]
+data UClauseM state m t = UClauseM  { lhsM :: t , rhsM :: ResolverT state m -> ResolverT state m }
+
+type ClauseM state  m  = UClauseM state m Term
+
+type DatabaseM state m  = DB.GenDatabase (ClauseM state m)
+
 getFreeVar :: (Applicative m, Monad m) => PrologT m Term
 getFreeVar = PrologT $ lift (UVar <$> freeVar)
 
@@ -34,8 +45,6 @@ getFreeVars n = do x  <- getFreeVar
 
 
 
-type Stack = [(IntBindingState T, [Goal], [Branch])]
-type Branch = (IntBindingState T, [Goal])
 
 
 getBranches ::  ( Monad m)

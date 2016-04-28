@@ -84,17 +84,21 @@ everywhere' f = map (everywhere'' f)
     everywhere'' f'  (UTerm (TCut n))       = UTerm (f' (TCut n))
     everywhere'' _f' (UVar v)               = UVar v
 
-data UClause t = UClause   { lhs :: t , rhs_ :: [t] }
-               | UClauseFn { lhs :: t , fn   :: [Term] -> [Goal] }
+
+data UClause  t = UClause   { lhs :: t , rhs_ :: [t] }
+                | UClauseFn { lhs :: t , fn   :: [Term] -> [Goal] }
               deriving (Functor,Foldable,Traversable)
 
 rhs :: Clause ->  [Term] -> [Goal]
 rhs (UClause   _ rhs') =  const rhs'
 rhs (UClauseFn _ fn'  ) =  fn'
 
-newtype UClauseList t = UClauseList [UClause t]
-                      deriving (Functor,Foldable,Traversable)
-type Clause = UClause Term
+
+newtype UClauseList  t = UClauseList [UClause t]
+                       deriving (Functor,Foldable,Traversable)
+type Clause = UClause  Term
+
+
 
 
 atom :: Text -> UTerm T v
@@ -119,7 +123,7 @@ nil        = UTerm $ TStruct "[]" []
 ppProgram :: [Clause] -> Text
 ppProgram cls = T.intercalate "\n" $ map ppClause cls
 
-ppClause :: Clause -> Text
+ppClause :: Clause  -> Text
 ppClause (UClause   lhs' [])   = T.concat [ ppTerm lhs' , "."]
 ppClause (UClause   lhs' rhs') = T.concat [ ppTerm lhs' , " :- " , ppRHS rhs' ]
 ppClause (UClauseFn lhs' _fn)  = T.concat [ ppTerm lhs' , " :- " , "<FUNCTION>" ]

@@ -11,9 +11,11 @@ module Language.Prolog2.Database
    , size
    , hasPredicate
    , getClauses
+   , getClauseM
    , asserta
-   , Signature(), signature
-   , Database(..)
+   , Signature(..), signature
+   , Database
+   , GenDatabase(..)
    )
 where
 
@@ -33,7 +35,6 @@ import Control.Unification
 
 import Language.Prolog2.Syntax
 
-
 data Signature = Signature Atom Int deriving (Ord, Eq)
 instance Show Signature where
    show (Signature name arity) = T.unpack name ++ "/" ++ show arity
@@ -43,18 +44,18 @@ signature (UTerm (TStruct name ts)) =  Just (Signature name (length ts))
 signature  _  = Nothing
 
 
-newtype DatabaseT a = DB (Map (Maybe Signature) a)
+newtype GenDatabase a = DB (Map (Maybe Signature) a)
                       deriving (Foldable, Traversable, Functor)
-type Database = DatabaseT [Clause]
+type Database  = GenDatabase [Clause]
 
 
-empty :: Database
+empty :: GenDatabase a
 empty = DB Map.empty
 
-size :: Database -> Int
+size :: GenDatabase a -> Int
 size (DB db) = Map.size db
 
-hasPredicate :: Signature -> Database -> Bool
+hasPredicate :: Signature -> GenDatabase a -> Bool
 hasPredicate sig (DB index) = Map.member (Just sig) index
 
 createDB :: Foldable t => t (UClause Term) -> [Text] -> Database
@@ -69,8 +70,12 @@ insertProgram clauses (DB db) = DB $
    db
    clauses
 
-getClauses :: Term -> Database -> [Clause]
+
+getClauses :: Term -> GenDatabase [a] -> [a]
 getClauses term (DB index) = maybe [] id $ Map.lookup (signature term) index
 
-asserta :: Term -> Database -> Database
+getClauseM :: Term -> GenDatabase a -> Maybe a
+getClauseM term (DB index) = Map.lookup (signature term) index
+
+asserta :: Term -> Database  -> Database
 asserta fact (DB index') = DB $ Map.insertWith (++)  (signature fact) [UClause fact []] index'
