@@ -18,8 +18,14 @@ module Text.Parsec.PrologExpr
     , buildExpressionParser
     ) where
 
+#ifdef YESOD
+import Prelude
+#endif
+
 import Text.Parsec.Prim
 import Text.Parsec.Combinator
+import Data.List
+import Data.Function
 
 -----------------------------------------------------------
 -- Assoc and OperatorTable
@@ -51,7 +57,7 @@ data Operator s u m a   = Infix (ParsecT s u m (a -> a -> a)) InfixAssoc
 -- precedence. All operators in one list have the same precedence (but
 -- may have a different associativity).
 
-type OperatorTable s u m a = [[Operator s u m a]]
+type OperatorTable s u m a = [(Int, [Operator s u m a])]
 
 -----------------------------------------------------------
 -- Convert an OperatorTable and basic term parser into
@@ -93,7 +99,7 @@ buildExpressionParser :: (Stream s m t)
                       -> ParsecT s u m a
                       -> ParsecT s u m a
 buildExpressionParser operators simpleExpr
-    = foldl (makeParser) simpleExpr operators
+    = foldl (makeParser) simpleExpr (map snd (sortBy (compare `on` fst) operators))
     where
       makeParser term ops
         = let (xfy,yfx,xfx

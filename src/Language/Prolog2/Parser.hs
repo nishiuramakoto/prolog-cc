@@ -3,24 +3,18 @@
   , ScopedTypeVariables
   #-}
 
-
 module Language.Prolog2.Parser
    ( Parser , consult, consultString , parseQuery
    , program, whitespace, comment, clause, terms, term, bottom, vname
    ) where
 import Prelude
 import Text.Parsec
-import Text.Parsec.Expr hiding (Assoc(..))
-import qualified Text.Parsec.Expr as Parsec
+import qualified Text.Parsec.PrologExpr as P.Prolog
 import qualified Text.Parsec.Token as P
 import qualified Text.Parsec.Error as P
 import qualified Text.Parsec.Pos as P
 
--- import Text.Parsec.Language (emptyDef)
--- import Control.Applicative (Applicative,(<$>),(<*>),(<$),(<*))
 import Control.Monad.State
--- import Control.Unification.IntVar
--- import Data.Text(Text)
 import qualified Data.Text as T
 import Data.Map(Map)
 import qualified Data.Map as Map
@@ -28,13 +22,12 @@ import Data.Char
 
 import System.Directory
 
-
 import Language.Prolog2.Syntax hiding (atom)
 import qualified Language.Prolog2.Syntax as Prolog
-import Language.Prolog2.Interpreter
+import Language.Prolog2.Types
+import Language.Prolog2.InterpreterCommon
 
-
-type Parser m a = ParsecT String ParserState (PrologT m) a
+type Parser m a = ParsecT String (ParserState (PrologT m)) (PrologT m) a
 
 ------------------------  Top level parsers --------------------------
 consult :: FilePath -> PrologT IO (Either ParseError Program)
@@ -120,8 +113,12 @@ termWithoutConjunction :: (Functor m, Applicative m, Monad m) => Parser m Term
 termWithoutConjunction = term' True
 
 
-term' :: (Functor m, Applicative m, Monad m) => Bool -> Parser m Term
-term' ignoreConjunction = buildExpressionParser (reverse $ map (map toParser) $ hierarchy ignoreConjunction) (bottom <* whitespace)
+term' :: (Monad m) => Bool -> Parser m Term
+term' ignoreConjunction = P.Prolog.buildExpressionParser
+                          (map f $ hierarchy ignoreConjunction)
+                          (bottom <* whitespace)
+  where -- f :: (Int, [Operator] ) -> (Int , [ P.Prolog.Operator ])
+    f (n, ops) = (n, map toParser ops)
 
 bottom :: (Functor m, Applicative m, Monad m) => Parser m Term
 bottom = variable
@@ -132,22 +129,26 @@ bottom = variable
       <|> ((UTerm . TStruct (T.pack "{}"))  <$> between (charWs '{') (char '}') terms)
       <|> between (charWs '(') (char ')') term
 
-toParser :: (Functor m, Applicative m, Monad m) => Prolog.Operator -> Parsec.Operator String ParserState (PrologT m) Term
-toParser (PrefixOp name)      = Prefix $ reservedOp (T.unpack name) >> return (\t -> UTerm (TStruct name [t]))
-toParser (InfixOp assoc name) = Infix   ( do reservedOp (T.unpack name)
-                                             return (\t1 t2 -> UTerm (TStruct name [t1, t2])))
-                                     (case assoc of AssocLeft  -> Parsec.AssocLeft
-                                                    AssocRight -> Parsec.AssocRight)
+toParser :: (Monad m)
+            => Prolog.Operator -> P.Prolog.Operator String (ParserState (PrologT m)) (PrologT m) Term
+toParser (PrefixOp assoc name)  = P.Prolog.Prefix ( do reservedOp (T.unpack name)
+                                                       return (\t -> UTerm (TStruct name [t])) ) assoc
+
+toParser (PostfixOp assoc name) = P.Prolog.Postfix ( do reservedOp (T.unpack name)
+                                                        return (\t -> UTerm (TStruct name [t])) ) assoc
+
+toParser (InfixOp assoc name)   = P.Prolog.Infix ( do reservedOp (T.unpack name)
+                                                      return (\t1 t2 -> UTerm (TStruct name [t1, t2]))) assoc
 
 
-type PrologLanguageDef m = P.GenLanguageDef String ParserState  m
+type PrologLanguageDef m = P.GenLanguageDef String (ParserState m)  m
 
 genPrologDef   :: (Functor m, Applicative m, Monad m) => PrologLanguageDef m
 genPrologDef    = P.LanguageDef
-               { P.commentStart   = ""
-               , P.commentEnd     = ""
-               , P.commentLine    = ""
-               , P.nestedComments = True
+               { P.commentStart   = "/*"
+               , P.commentEnd     = "*/"
+               , P.commentLine    = "%"
+               , P.nestedComments = False
                , P.identStart     = letter <|> char '_'
                , P.identLetter    = alphaNum <|> oneOf "_'"
                , P.opStart        = oneOf ";,<=>\\i*+m@"
@@ -157,7 +158,7 @@ genPrologDef    = P.LanguageDef
                , P.caseSensitive  = True
                }
 
-reservedOp :: (Functor m, Applicative m, Monad m) => String -> Parser m ()
+reservedOp :: (Monad m) => String -> Parser m ()
 reservedOp = P.reservedOp $ P.makeTokenParser $ genPrologDef
 
 -- reservedOp = P.reservedOp $ P.makeTokenParser $ emptyDef
@@ -230,13 +231,18 @@ representChar c = UTerm (TStruct (T.pack (show (fromEnum c))) []) -- This is the
 
 
 ----------------------------  User state  ----------------------------
-data ParserState = ParserState { varMap    :: Map String Term
-                               , wildcards :: [(String, Term)]
-                               }
-                      deriving (Show)
+data ParserState m  = ParserState
+                      { varMap    :: Map String Term
+                      , wildcards :: [(String, Term)]
+                      , operatorTable :: P.Prolog.OperatorTable String (ParserState m) m Term
+                      , expressionParser :: ParsecT String (ParserState m) m Term
+                      }
 
-emptyState :: ParserState
-emptyState = ParserState { varMap = Map.empty , wildcards = [] }
+emptyState :: Monad m => ParserState m
+emptyState = ParserState { varMap = Map.empty
+                         , wildcards = []
+                         , operatorTable = [(0,[])]
+                         , expressionParser = fail "no operator defined" }
 
 resetState :: (Functor m, Applicative m, Monad m) => Parser m ()
 resetState = updateState (\_ -> emptyState)
@@ -248,12 +254,12 @@ lookupVarMap v = do
 
 insertVarMap :: (Functor m, Applicative m, Monad m) => String -> Term -> Parser m ()
 insertVarMap v x = do
-  ParserState vmap wild_ <- getState
+  ParserState vmap wild_ op expr <- getState
   let vmap' = Map.insert v x vmap
-  setState $ ParserState vmap' wild_
+  setState $ ParserState vmap' wild_ op expr
 
 insertWildcard :: (Functor m, Applicative m, Monad m) => String -> Term -> Parser m ()
 insertWildcard v x = do
-  ParserState vmap wild_ <- getState
+  ParserState vmap wild_ op expr <- getState
   let wildcards' = (v,x) : wild_
-  setState $ ParserState vmap wildcards'
+  setState $ ParserState vmap wildcards' op expr

@@ -18,7 +18,7 @@ module Language.Prolog2.Syntax
    , Goal, Program, Atom
    , atom, cut
    , hierarchy
-   , Operator(..), Assoc(..)
+   , Operator(..)
    , arguments
    , foldr_pl
    , cons, nil
@@ -39,14 +39,12 @@ import Data.Text(Text)
 import qualified Data.Text as T
 import Data.List.Extras.Pair  (pairWith)
 import Data.Char (isLetter)
--- import Data.Traversable
--- import Data.Foldable(Foldable)
+
 import Control.Unification hiding (getFreeVars)
 import Control.Unification.IntVar
 import Control.Unification.Types
--- import Control.Monad.Except
--- import Control.Applicative
 
+import Text.Parsec.PrologExpr (InfixAssoc(..), PrefixAssoc(..), PostfixAssoc(..) )
 
 data T a = TStruct Text [a]
          | TCut {-# UNPACK #-} !Int
@@ -142,20 +140,9 @@ prettyPrint :: Bool -> Int -> Term -> Text
 prettyPrint True _ t@(UTerm (TStruct "," [_,_])) =
   T.concat [ "(" , prettyPrint False 0 t ,  ")" ]
 
-prettyPrint f n (UTerm (TStruct (flip lookup operatorTable->Just (p,InfixOp assoc name)) [l,r])) =
-   parensIf (n >= p) $ T.concat [ prettyPrint f n_l l , spaced name , prettyPrint f n_r r ]
-     where (n_l,n_r) = case assoc of
-                           AssocLeft  -> (p-1, p)
-                           AssocRight -> (p, p-1)
-
-prettyPrint f n (UTerm (TStruct (flip lookup operatorTable->Just (p,PrefixOp name)) [r])) =
-  parensIf (n >= p) $ T.concat [name , prettyPrint f (p {- Non-associative -}) r ]
 
 prettyPrint _ _ t@(UTerm (TStruct "." [_,_])) =
   let (ts,rest) = g [] t in
-      --case guard (isNil rest) >> sequence (map toChar ts) of
-      --   Just str -> prettyPrint str
-      --   Nothing  ->
   T.concat [ "["
            , T.intercalate "," (map (prettyPrint True 0) ts)
            , if isNil rest then "" else T.concat [ "|" , (prettyPrint True 0) rest ]
@@ -190,47 +177,43 @@ parensIf True  s = T.concat [ "(" , s , ")" ]
 parensIf False s = s
 
 
-operatorTable :: [(Text, (Int,Operator))]
-operatorTable = concat $ zipWith (map . g) [1..] $ hierarchy False
- where g p op@(InfixOp _ name) = (name,(p,op))
-       g p op@(PrefixOp name)  = (name,(p,op))
-
-
 instance Show t => Show (UClause t) where
    show (UClause   lhs' [] )  = show $ show lhs'
    show (UClause   lhs' rhs') = show $ show lhs' ++ " :- " ++ intercalate ", " (map show rhs')
    show (UClauseFn lhs' _f)   = show lhs' ++ "<FUNCTION>"
 
-data Operator = PrefixOp Text
-              | InfixOp Assoc Text
-data Assoc = AssocLeft
-           | AssocRight
+ --------------------------- Operator table --------------------------
+data Operator = InfixOp InfixAssoc Text
+              | PrefixOp  PrefixAssoc Text
+              | PostfixOp PostfixAssoc Text
 
-hierarchy :: Bool -> [[Operator]]
+
+hierarchy :: Bool -> [(Int, [Operator])]
 hierarchy ignoreConjunction =
-   --[ [ InfixOp NonAssoc "-->", InfixOp NonAssoc ":-" ]
-   [ [ infixR ";" ] ] ++
-   (if ignoreConjunction then [] else [ [ infixR "," ] ])  ++
-   [ [ prefix "\\+" ]
-   , map infixL ["<", "=..", "=:=", "=\\=", "=<", "=", ">=", ">", "\\=", "is", "==", "@<", "@=<", "@>=", "@>"]
-   , map infixL ["+", "-", "\\"]
-   , [ infixL "*", infixL "/"]
-   , [ infixL "mod" ]
-   , [ prefix "-" ]
-   , [ prefix "$" ] -- used for quasi quotation
-   ]
+  [ (1200, map xfx [":-" , "-->" ])
+  , (1200, map fx  [":-" , "?-" ])
+  , (1100, map xfy [";" ])
+  , (1050, map xfy ["->" ])
+  , (1000, map xfy (if ignoreConjunction then [] else [","]) )
+  , (900 , map fy  ["\\+"])
+  , (700 , map xfx [ "=", "\\=", "==", "\\=="
+                   , "@<", "@=<", "@>", "@>=", "is", "=:=", "=\\=", "<", "=<", ">", ">=", "=.." ])
+  , (500 , map yfx ["+", "-", "/\\" , "\\/"])
+  , (400 , map yfx ["*", "/", "//" , "rem" , "mod" , "<<" , ">>" ])
+  , (200 , map xfx ["**"])
+  , (200 , map xfy ["^"])
+  , (200 , map fy  ["\\" , "-"])
+  , (100 , map xfx ["@"])
+  , (50  , map xfx [":"])
+  ]
  where
-   prefix = PrefixOp
-   infixL = InfixOp AssocLeft
-   infixR = InfixOp AssocRight
+   xfx = InfixOp   AssocXFX
+   xfy = InfixOp   AssocXFY
+   yfx = InfixOp   AssocYFX
+   fx  = PrefixOp  AssocFX
+   fy  = PrefixOp  AssocFY
+   xf  = PostfixOp AssocXF
+   yf  = PostfixOp AssocYF
 
 arguments :: [a] -> a -> a -> [a]
 arguments ts xs ds = ts ++ [ xs, ds ]
-
-----------------------------------------------------------------
-_fib :: Int -> Int
-_fib 0 = 1
-_fib 1 = 1
-_fib n = _fib (n-1) + _fib (n-2)
-{-# INLINE _fib #-}
-----------------------------------------------------------------
