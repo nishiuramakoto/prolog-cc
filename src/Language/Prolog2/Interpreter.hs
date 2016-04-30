@@ -33,9 +33,9 @@ import Form
 -----------------------------------------------------------------------------------------------
 
 import qualified Control.Monad
-import Control.Monad.Reader
-import Control.Monad.State
-import Control.Monad.Except
+import Control.Monad.Reader hiding(filterM)
+import Control.Monad.State hiding(filterM)
+import Control.Monad.Except hiding(filterM)
 import Control.Unification hiding (getFreeVars)
 import qualified Control.Unification as U
 import Control.Unification.IntVar
@@ -146,18 +146,38 @@ backtrack st depth nf  ((u,gs,alts):stack) staticDB = choose st (pred depth) nf 
 
 -------------------------- Monadic Builtins --------------------------
 
-asserta :: (UserState -> Int -> Int -> IntBindingState T -> [Goal] -> Stack -> StaticDB
-            -> CCPrologHandler [IntBindingState T])
-           -> UserState -> Int -> Int -> IntBindingState T -> [Goal] -> Stack -> StaticDB
-           -> CCPrologHandler [IntBindingState T]
+type Resolver = UserState -> Int -> Int -> IntBindingState T -> [Goal] -> Stack -> StaticDB
+                -> CCPrologHandler [IntBindingState T]
+
+asserta :: Resolver -> Resolver
 asserta resolver st depth nf usf (UTerm (TStruct "asserta" [fact]):gs) stack staticDB = do
         nf' <- liftProlog $ countFreeVars [[UClause fact [] ]]
         local (DB.asserta fact) $  resolver st depth (max nf nf')  usf gs stack staticDB
+
+assertz :: Resolver -> Resolver
+assertz resolver st depth nf usf (UTerm (TStruct "asserta" [fact]):gs) stack staticDB = do
+        nf' <- liftProlog $ countFreeVars [[UClause fact [] ]]
+        local (DB.assertz fact) $  resolver st depth (max nf nf')  usf gs stack staticDB
+
+retract :: Resolver -> Resolver
+retract resolver st depth nf usf (UTerm (TStruct "retract" [t]):gs) stack staticDB = do
+  $logInfo $ T.pack $ "retract:" ++ show t
+
+  clauses <- asks (DB.getClauses t)
+  ts <- filterM (liftProlog . PrologT . unifyWith t) [ t' | UClause t' [] <- clauses ]
+  case ts of
+    [] -> do $logInfo $ T.pack $ "retract failed:"
+             return (fail "retract/1")
+    (fact:_) -> local (DB.abolish fact) $ resolver st depth nf usf gs stack staticDB
+    where
+      unifyWith t t' = (t =:= t' >> return True) `catchError` const (return False)
 
 builtinM :: Monad m => PrologT m [ClauseM UserState (CCPrologT Handler)]
 builtinM = do
   x <- getFreeVar
   return [ UClauseM (UTerm (TStruct "asserta" [x])) asserta
+         , UClauseM (UTerm (TStruct "assertz" [x])) assertz
+         , UClauseM (UTerm (TStruct "retract" [x])) retract
          ]
 
 type StaticDB = DatabaseM UserState (CCPrologT Handler)

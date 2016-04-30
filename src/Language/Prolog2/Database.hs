@@ -13,6 +13,8 @@ module Language.Prolog2.Database
    , getClauses
    , getClauseM
    , asserta
+   , assertz
+   , abolish
    , Signature(..), signature
    , Database
    , GenDatabase(..)
@@ -79,3 +81,12 @@ getClauseM term (DB index) = Map.lookup (signature term) index
 
 asserta :: Term -> Database  -> Database
 asserta fact (DB index') = DB $ Map.insertWith (++)  (signature fact) [UClause fact []] index'
+
+assertz :: Term -> Database -> Database
+assertz fact (DB index') = DB $ Map.insertWith (flip (++)) (signature fact) [UClause fact []] index'
+
+abolish :: Term -> Database -> Database
+abolish fact (DB index') = DB $ Map.adjust deleteFact (signature fact) index'
+   where deleteFact (UClause t []:cs) | t == fact = cs
+         deleteFact (_           :cs)             = cs
+         deleteFact []                            = []
