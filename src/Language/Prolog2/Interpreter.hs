@@ -9,6 +9,7 @@
   , ScopedTypeVariables
   , DeriveTraversable
   , OverloadedStrings
+  , LiberalTypeSynonyms
   , CPP
   #-}
 
@@ -79,13 +80,13 @@ resolveWithDatabase ::  UserState -> Int -> [Goal] -> Stack
 resolveWithDatabase  st depth goals stack = do
   db <- ask
   usf <- get
-  staticDB <- liftProlog getStaticDB
+  staticDB <- liftProlog getSystemDB
   -- $(logInfo) $ T.pack $ "resolveWithDatabase: " ++ (show $ DB.size db)
   numFreeVars <- liftProlog $ countFreeVars db
   -- $(logInfo) $ T.pack $ "resolveWithDatabase: " ++ show numFreeVars
   resolve'' st depth numFreeVars usf goals stack staticDB
 
-resolve'' ::  UserState -> Int -> Int -> IntBindingState T -> [Goal] -> Stack -> StaticDB
+resolve'' ::  UserState -> Int -> Int -> IntBindingState T -> [Goal] -> Stack -> SystemDB UserState (CCPrologT Handler)
               -> CCPrologHandler   [IntBindingState T]
 
 resolve'' st depth nf usf [] stack staticDB =  do
@@ -98,28 +99,6 @@ resolve'' st depth nf  usf (goal:gs) stack staticDB |
   Just (UClauseM lhs m) <- DB.getClauseM goal staticDB = do
     m resolve'' st depth nf usf (goal:gs) stack staticDB
 
--- resolve'' st depth nf  usf goals'@(UTerm (TStruct "asserta" [fact]):gs) stack = do
---   -- $(logInfo) $ T.pack $ "asserta "
-
---   nf' <- liftProlog $ countFreeVars [[UClause fact [] ]]
---   local (DB.asserta fact) $  resolve'' st depth (max nf nf')  usf gs stack
-
-----------------  Yesod specific language extensions  ----------------
-resolve'' st depth nf usf (UTerm (TStruct "inquire_bool" [query,v]):gs) stack staticDB = do
-  -- $logInfo "resolve''"
-  st' <-  inquirePrologBool st query
-
-  let result = case ccsCurrentForm st' of
-        CCFormResult form' ->  case cast form' of
-          Just (FormSuccess (PrologInquireBoolForm True))
-            -> UTerm (TStruct "true" [])
-          _ -> UTerm (TStruct "false" [])
-          Nothing -> UTerm (TStruct "false" [])
-
-  -- $logInfo "resolve''"
-  resolve'' st' depth nf usf ((UTerm (TStruct "=" [v, result])) : gs) stack staticDB
----------------------------------------------------------------------
-
 resolve'' st depth nf usf (nextGoal:gs) stack staticDB= do
         -- trace $ show $ "==resolve'=="
         -- trace $ show $  ("usf:",usf)
@@ -129,37 +108,36 @@ resolve'' st depth nf usf (nextGoal:gs) stack staticDB= do
   put usf
   updateNextFreeVar depth nf
   usf' <- get
-  -- $logInfo $ T.pack $ "resolve''" ++ show nf
   branches <- CCPrologT $ lift $ getBranches usf' nextGoal gs
-  -- $logInfo $ T.pack $ "resolve''" ++ show nf
   choose st depth nf usf gs branches stack staticDB
 
-choose :: UserState -> Int -> Int -> IntBindingState T -> [Goal] -> [Branch] -> Stack -> StaticDB
-             -> CCPrologHandler  [IntBindingState T]
+choose :: UserState -> Int -> Int -> IntBindingState T -> [Goal] -> [Branch] -> Stack -> SystemDB UserState (CCPrologT Handler) -> CCPrologHandler  [IntBindingState T]
 choose  st depth  nf _usf _gs  (_branches@[]) stack staticDB = backtrack st depth nf stack staticDB
 choose  st depth  nf usf  gs ((u',gs'):alts)  stack staticDB =
   resolve'' st (succ depth) nf u' gs' ((usf,gs,alts) : stack) staticDB
 
-backtrack :: UserState -> Int -> Int -> Stack -> StaticDB -> CCPrologHandler  [ IntBindingState T ]
+backtrack :: UserState -> Int -> Int -> Stack -> SystemDB UserState (CCPrologT Handler)
+             -> CCPrologHandler  [ IntBindingState T ]
 backtrack _  _ _ [] _                 =  return (fail "Goal cannot be resolved!")
 backtrack st depth nf  ((u,gs,alts):stack) staticDB = choose st (pred depth) nf  u gs alts stack staticDB
 
 -------------------------- Monadic Builtins --------------------------
 
-type Resolver = UserState -> Int -> Int -> IntBindingState T -> [Goal] -> Stack -> StaticDB
-                -> CCPrologHandler [IntBindingState T]
 
-asserta :: Resolver -> Resolver
+--type Resolver = UserState -> Int -> Int -> IntBindingState T -> [Goal] -> Stack -> SystemDB (CCPrologT Handler)
+--                -> CCPrologHandler [IntBindingState T]
+
+asserta :: Resolver UserState (CCPrologT Handler) -> Resolver UserState (CCPrologT Handler)
 asserta resolver st depth nf usf (UTerm (TStruct "asserta" [fact]):gs) stack staticDB = do
         nf' <- liftProlog $ countFreeVars [[UClause fact [] ]]
         local (DB.asserta fact) $  resolver st depth (max nf nf')  usf gs stack staticDB
 
-assertz :: Resolver -> Resolver
+assertz :: Resolver UserState (CCPrologT Handler) -> Resolver UserState (CCPrologT Handler)
 assertz resolver st depth nf usf (UTerm (TStruct "asserta" [fact]):gs) stack staticDB = do
         nf' <- liftProlog $ countFreeVars [[UClause fact [] ]]
         local (DB.assertz fact) $  resolver st depth (max nf nf')  usf gs stack staticDB
 
-retract :: Resolver -> Resolver
+retract :: Resolver UserState (CCPrologT Handler) -> Resolver UserState (CCPrologT Handler)
 retract resolver st depth nf usf (UTerm (TStruct "retract" [t]):gs) stack staticDB = do
   $logInfo $ T.pack $ "retract:" ++ show t
 
@@ -172,23 +150,42 @@ retract resolver st depth nf usf (UTerm (TStruct "retract" [t]):gs) stack static
     where
       unifyWith t t' = (t =:= t' >> return True) `catchError` const (return False)
 
+
+----------------  Yesod specific language extensions  ----------------
+inquire_bool :: Resolver UserState (CCPrologT Handler) -> Resolver UserState (CCPrologT Handler)
+inquire_bool resolver st depth nf usf (UTerm (TStruct "inquire_bool" [query,v]):gs) stack staticDB = do
+  -- $logInfo "resolve''"
+  st' <-  inquirePrologBool st query
+
+  let result = case ccsCurrentForm st' of
+        CCFormResult form' ->  case cast form' of
+          Just (FormSuccess (PrologInquireBoolForm True))
+            -> UTerm (TStruct "true" [])
+          _ -> UTerm (TStruct "false" [])
+          Nothing -> UTerm (TStruct "false" [])
+
+  -- $logInfo "resolve''"
+  resolver st' depth nf usf ((UTerm (TStruct "=" [v, result])) : gs) stack staticDB
+---------------------------------------------------------------------
+
+
 builtinM :: Monad m => PrologT m [ClauseM UserState (CCPrologT Handler)]
 builtinM = do
-  x <- getFreeVar
-  return [ UClauseM (UTerm (TStruct "asserta" [x])) asserta
-         , UClauseM (UTerm (TStruct "assertz" [x])) assertz
-         , UClauseM (UTerm (TStruct "retract" [x])) retract
+  [x,x',x'',query,v]  <- getFreeVars 5
+  return [ UClauseM (UTerm (TStruct "asserta" [x  ])) asserta
+         , UClauseM (UTerm (TStruct "assertz" [x' ])) assertz
+         , UClauseM (UTerm (TStruct "retract" [x''])) retract
+         , UClauseM (UTerm (TStruct "inquire_bool" [query,v])) inquire_bool
          ]
 
-type StaticDB = DatabaseM UserState (CCPrologT Handler)
 
-insertProgramM :: [ (UClauseM UserState (CCPrologT Handler) Term) ] -> StaticDB  -> StaticDB
+insertProgramM :: Monad m => [ (UClauseM state m Term) ] -> SystemDB state m  -> SystemDB state m
 insertProgramM clauses (DB.DB db) = DB.DB $
    foldr (\clause  -> Map.insert (DB.signature (lhsM clause)) clause)
    db
    clauses
 
-getStaticDB :: Monad m => PrologT m StaticDB
-getStaticDB = do
+getSystemDB :: Monad m => PrologT m (SystemDB UserState (CCPrologT Handler))
+getSystemDB = do
   ls <- builtinM
   return $ insertProgramM ls DB.empty

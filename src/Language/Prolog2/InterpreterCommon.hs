@@ -1,3 +1,8 @@
+{-# LANGUAGE
+    LiberalTypeSynonyms
+  , CPP
+  #-}
+
 module Language.Prolog2.InterpreterCommon
        ( module Language.Prolog2.InterpreterCommon
        )
@@ -22,16 +27,22 @@ import Language.Prolog2.Syntax
 import Language.Prolog2.Database(Database)
 import qualified Language.Prolog2.Database as DB
 
+
 type Stack = [(IntBindingState T, [Goal], [Branch])]
 type Branch = (IntBindingState T, [Goal])
 
 type ResolverT state m = state -> Int -> Int -> IntBindingState T -> [Goal] -> Stack -> DatabaseM state m
                          -> m [IntBindingState T]
-data UClauseM state m t = UClauseM  { lhsM :: t , rhsM :: ResolverT state m -> ResolverT state m }
+data UClauseM state  m  t = UClauseM  { lhsM :: t , rhsM :: ResolverT state m -> ResolverT state m }
 
 type ClauseM state  m  = UClauseM state m Term
 
 type DatabaseM state m  = DB.GenDatabase (ClauseM state m)
+
+type SystemDB state m = DatabaseM state m
+type Resolver state m  = state -> Int -> Int -> IntBindingState T -> [Goal] -> Stack -> SystemDB state m
+                         -> m [IntBindingState T]
+
 
 getFreeVar :: (Applicative m, Monad m) => PrologT m Term
 getFreeVar = PrologT $ lift (UVar <$> freeVar)

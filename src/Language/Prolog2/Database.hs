@@ -36,6 +36,8 @@ import Control.Unification
 -- import Control.Unification.IntVar
 
 import Language.Prolog2.Syntax
+import Language.Prolog2.NamedGraph
+
 
 data Signature = Signature Atom Int deriving (Ord, Eq)
 instance Show Signature where
@@ -46,7 +48,7 @@ signature (UTerm (TStruct name ts)) =  Just (Signature name (length ts))
 signature  _  = Nothing
 
 
-newtype GenDatabase a = DB (Map (Maybe Signature) a)
+newtype GenDatabase a = DB { dbClauseMap :: (Map (Maybe Signature) a) }
                       deriving (Foldable, Traversable, Functor)
 type Database  = GenDatabase [Clause]
 

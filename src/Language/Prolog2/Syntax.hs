@@ -24,6 +24,7 @@ module Language.Prolog2.Syntax
    , cons, nil
    , everywhere'
    , ppTerm , ppClause , ppProgram
+--   , Stack, Branch , ResolverT , UClauseM(..), ClauseM
    )
 where
 
@@ -95,6 +96,7 @@ rhs (UClauseFn _ fn'  ) =  fn'
 newtype UClauseList  t = UClauseList [UClause t]
                        deriving (Functor,Foldable,Traversable)
 type Clause = UClause  Term
+
 
 
 
