@@ -3,6 +3,7 @@ module Language.Prolog2
    , Clause, rhs
    , UClause(..)
    , Atom,  Program, Goal , Failure , RuntimeError, ParseError
+   , ModuleName
    , PrologT
    , runPrologT , execPrologT, evalPrologT
    , getFreeVar, getFreeVars
@@ -11,8 +12,8 @@ module Language.Prolog2
    , parseQuery
    , term,terms,clause,program,whitespace
    , ppTerm, ppClause, ppProgram
+   , createDB
    , module Language.Prolog2.Types
-   , module Language.Prolog2.Builtins
    )
 where
 
@@ -21,5 +22,4 @@ import Language.Prolog2.Parser
 import Language.Prolog2.Interpreter
 import Language.Prolog2.Syntax
 import Language.Prolog2.Types
-import Language.Prolog2.Builtins
 import Text.Parsec

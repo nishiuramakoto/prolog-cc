@@ -1,6 +1,7 @@
 
 module Language.Prolog2.NamedGraph
        ( NamedGraph(..)
+       , empty
        , merge
        ) where
 
@@ -8,8 +9,9 @@ module Language.Prolog2.NamedGraph
 import Prelude
 #endif
 
-import Data.Graph.Inductive.Graph
-import Data.Graph.Inductive.PatriciaTree
+import Data.Graph.Inductive.Graph hiding (empty)
+import qualified Data.Graph.Inductive.Graph  as Graph
+import Data.Graph.Inductive.PatriciaTree(Gr)
 import Data.Map(Map)
 import qualified Data.Map as Map
 import Data.List
@@ -18,6 +20,9 @@ import Data.Maybe
 data NamedGraph a = NamedGraph { ngGraph :: Gr a ()
                                , ngMap   :: Map a Node
                                }
+
+empty :: Ord a => NamedGraph a
+empty = NamedGraph Graph.empty Map.empty
 
 merge :: (Ord a) => NamedGraph a -> NamedGraph a -> NamedGraph a
 merge (NamedGraph gr1 map1) (NamedGraph gr2 map2) =
@@ -33,7 +38,7 @@ mergeMap m1 m2  = let m3 = Map.union m1 m2
 
 
 translateGraph :: Ord a => Map a Node -> Gr a () -> Gr a ()
-translateGraph m gr = ufold append empty  gr
+translateGraph m gr = ufold append Graph.empty  gr
   where
     nodeMap :: Node -> Maybe Node
     nodeMap n = case lab gr n of

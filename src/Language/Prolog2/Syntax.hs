@@ -24,7 +24,7 @@ module Language.Prolog2.Syntax
    , cons, nil
    , everywhere'
    , ppTerm , ppClause , ppProgram
---   , Stack, Branch , ResolverT , UClauseM(..), ClauseM
+   , Stack, Branch , Resolver , UClauseM(..), ClauseM,  ModuleName
    )
 where
 
@@ -98,6 +98,16 @@ newtype UClauseList  t = UClauseList [UClause t]
 type Clause = UClause  Term
 
 
+type Stack = [(IntBindingState T, [Goal], [Branch])]
+type Branch = (IntBindingState T, [Goal])
+
+type ModuleName = Atom
+
+type Resolver state m = state -> ModuleName -> Int -> Int -> IntBindingState T -> [Goal] -> Stack
+                         -> m [IntBindingState T]
+data UClauseM state  m  t = UClauseM  { lhsM :: t , rhsM :: Resolver state m -> Resolver state m }
+
+type ClauseM state  m  = UClauseM state m Term
 
 
 

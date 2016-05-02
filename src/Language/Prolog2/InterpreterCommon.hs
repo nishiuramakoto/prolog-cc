@@ -4,7 +4,11 @@
   #-}
 
 module Language.Prolog2.InterpreterCommon
-       ( module Language.Prolog2.InterpreterCommon
+       ( getFreeVar
+       , getFreeVars
+       , resolveToTerms
+       , resolve
+       , countFreeVars
        )
 where
 
@@ -21,6 +25,7 @@ import Control.Unification hiding (getFreeVars)
 import qualified Control.Unification as U
 import Control.Unification.IntVar
 import qualified Data.Text as T
+import qualified Data.Map as Map
 
 import Language.Prolog2.Types
 import Language.Prolog2.Syntax
@@ -28,26 +33,11 @@ import Language.Prolog2.Database(Database)
 import qualified Language.Prolog2.Database as DB
 
 
-type Stack = [(IntBindingState T, [Goal], [Branch])]
-type Branch = (IntBindingState T, [Goal])
 
-type ResolverT state m = state -> Int -> Int -> IntBindingState T -> [Goal] -> Stack -> DatabaseM state m
-                         -> m [IntBindingState T]
-data UClauseM state  m  t = UClauseM  { lhsM :: t , rhsM :: ResolverT state m -> ResolverT state m }
+getFreeVar :: (Monad m, MonadProlog t) => t m Term
+getFreeVar = liftProlog $ PrologT $ lift $ (UVar <$> freeVar)
 
-type ClauseM state  m  = UClauseM state m Term
-
-type DatabaseM state m  = DB.GenDatabase (ClauseM state m)
-
-type SystemDB state m = DatabaseM state m
-type Resolver state m  = state -> Int -> Int -> IntBindingState T -> [Goal] -> Stack -> SystemDB state m
-                         -> m [IntBindingState T]
-
-
-getFreeVar :: (Applicative m, Monad m) => PrologT m Term
-getFreeVar = PrologT $ lift (UVar <$> freeVar)
-
-getFreeVars ::(Applicative m, Monad m) => Int -> PrologT m [Term]
+-- getFreeVars ::(Monad m, MonadProlog t) => Int -> t m [Term]
 getFreeVars 0 = return []
 getFreeVars 1 = getFreeVar >>= return . return
 getFreeVars n = do x  <- getFreeVar
@@ -55,21 +45,128 @@ getFreeVars n = do x  <- getFreeVar
                    return (x:xs)
 
 
+resolveToTerms ::  forall t state m.
+                   ( MonadPrologDatabase t state (t m) m
+                   , MonadReader (Database state (t m)) (t m)
+                   , MonadState (IntBindingState T) (t m)
+                   , MonadLogger m
+                   , MonadLogger (t m))
+                   => state ->  ModuleName -> Program ->  [Goal] -> t m   [[Term]]
+resolveToTerms st mod program goals = do
+  db <- ask
+  -- $(logInfo) $ T.pack $ "resolveToTerms: " ++ show (DB.size db)
+
+  vs <- liftProlog $ PrologT $ lift $ U.getFreeVarsAll goals
+  usfs <- resolve st mod program goals
+  Prelude.mapM (f (map UVar vs)) usfs
+    where
+      f :: [Term] -> IntBindingState T -> t m  [Term]
+      f vs usf = do put usf
+                    liftProlog $ PrologT $ Prelude.mapM applyBindings vs
+
+
+-- Yield all unifiers that resolve <goal> using the clauses from <program>.
+resolve :: ( MonadPrologDatabase t state (t m) m
+           , MonadReader (Database state (t m)) (t m)
+           , MonadState (IntBindingState T) (t m)
+           , MonadLogger m
+           , MonadLogger (t m))
+           => state -> ModuleName -> Program ->  [Goal]
+           -> t m  [IntBindingState T]
+resolve st  mod program goals = do
+  local (DB.insertProgram (Just mod)  program) (resolveWithDatabase st mod 1 goals [])
+
+resolveWithDatabase ::  ( MonadPrologDatabase t state (t m) m
+                        , MonadReader (Database state (t m)) (t m)
+                        , MonadState (IntBindingState T) (t m)
+                        , MonadLogger m
+                        , MonadLogger (t m))
+                        => state -> ModuleName -> Int -> [Goal] -> Stack
+                        -> t m   [IntBindingState T]
+resolveWithDatabase  st mod depth goals stack = do
+  db <- ask
+  usf <- get
+  numFreeVars <- liftProlog $ countFreeVars (DB.dbUserTable db)
+  resolve'' st mod depth numFreeVars usf goals stack
+
+resolve'' :: forall t state m.
+             ( MonadPrologDatabase t state (t m) m
+             , MonadReader (Database state (t m)) (t m)
+             , MonadState (IntBindingState T) (t m)
+             , MonadLogger m
+             , MonadLogger (t m) )
+             => state -> ModuleName -> Int -> Int -> IntBindingState T -> [Goal] -> Stack
+             -> t m [IntBindingState T]
+
+resolve'' st mod depth nf usf [] stack  =  do
+        (usf:) <$> backtrack st mod depth nf stack
+
+resolve'' st mod depth nf usf (UTerm (TCut n):gs) stack =
+  resolve'' st mod depth nf usf gs (drop n stack)
+
+resolve'' st mod depth nf usf (nextGoal:gs) stack = do
+        -- trace $ show $ "==resolve'=="
+        -- trace $ show $  ("usf:",usf)
+        -- trace $ show $  ("goals:",(nextGoal:gs))
+        -- trace $ show $  ("stack:", stack)
+  -- $logInfo $ T.pack $ "resolve''" ++ show nf
+  msystem <- asks (DB.getSystemClause nextGoal)
+  db <- ask
+  $logInfo $ T.pack $ show ("system db size=", Map.size $ DB.dbSystemTable db)
+  case msystem of
+    Just (UClauseM lhs m) ->
+      m resolve'' st mod depth nf usf (nextGoal:gs) stack
+    Nothing -> do
+
+
+      put usf
+      updateNextFreeVar depth nf
+      usf' <- get
+
+      let f = getBranches mod usf' nextGoal gs :: PrologDatabaseT state (t m) m [Branch]
+      branches <- liftPrologDatabase $ f
+
+      choose st mod depth nf usf gs branches stack
+
+choose :: ( MonadPrologDatabase t state (t m) m
+          , MonadReader (Database state (t m)) (t m)
+          , MonadState (IntBindingState T) (t m)
+          , MonadLogger m
+          , MonadLogger (t m) )
+          => state -> ModuleName -> Int -> Int -> IntBindingState T -> [Goal] -> [Branch] -> Stack
+          -> t m   [IntBindingState T]
+choose  st mod depth  nf _usf _gs  (_branches@[]) stack  = backtrack st mod depth nf stack
+choose  st mod depth  nf usf  gs ((u',gs'):alts)  stack  =
+  resolve'' st mod (succ depth) nf u' gs' ((usf,gs,alts) : stack)
+
+backtrack :: ( MonadPrologDatabase t state (t m) m
+             , MonadReader (Database state (t m)) (t m)
+             , MonadState (IntBindingState T) (t m)
+             , MonadLogger m
+             , MonadLogger (t m))
+             => state -> ModuleName -> Int -> Int -> Stack
+             -> t m  [ IntBindingState T ]
+backtrack _  _ _ _ []                =  return (fail "Goal cannot be resolved!")
+backtrack st mod depth nf  ((u,gs,alts):stack)  = choose st mod (pred depth) nf  u gs alts stack
 
 
 
-getBranches ::  ( Monad m)
-                => IntBindingState T -> Goal -> [Goal] -> PrologDatabaseT m [Branch]
-getBranches  usf (UVar n) gs = do
-        nextGoal <-  PrologDatabaseT $ lift $ PrologT $ applyBindings (UVar n)
+
+
+
+getBranches ::  (MonadLogger m) => ModuleName -> IntBindingState T -> Goal -> [Goal]
+                -> PrologDatabaseT state n m [Branch]
+getBranches  mod usf (UVar n) gs = do
+        nextGoal <-  liftProlog $ PrologT $ applyBindings (UVar n)
         case nextGoal of
           (UVar x) -> throwError $ Right (InstantiationError (UVar x))
-          _        -> getBranches usf nextGoal gs
+          _        -> getBranches mod usf nextGoal gs
 
-getBranches  usf nextGoal gs = do
+getBranches  mod usf nextGoal gs = do
 
-        clauses  <- asks (DB.getClauses nextGoal)
-        PrologDatabaseT $ lift $ do
+        clauses  <- asks (DB.getClauses mod nextGoal)
+        $logInfo $ T.pack $ show (mod, nextGoal, clauses)
+        liftProlog $ do
           clauses' <- freshenClauses clauses
           join <$>  Control.Monad.forM clauses' unifyM
         -- trace "nextGoal:" >> traceLn nextGoal

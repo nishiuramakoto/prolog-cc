@@ -10,10 +10,10 @@ import qualified Prelude
 import Language.Prolog2.Syntax
 import Language.Prolog2.Types
 import Language.Prolog2.InterpreterCommon
-import Language.Prolog2.Database
+import Language.Prolog2.Database as DB
 import qualified Data.Text as T
 
-builtins :: (Functor m, Applicative m, Monad m ) => PrologT m [Clause]
+builtins :: (Monad m) => PrologT m [Clause]
 builtins = do
   [x,x',x''] <-  getFreeVars 3
   [a,b,c,d,_e] <- getFreeVars 5
@@ -61,6 +61,6 @@ builtins = do
 
 
 
-createBuiltinDatabase :: Monad m => PrologT m Database
+createBuiltinDatabase :: Monad m => PrologT m (Database state n)
 createBuiltinDatabase = do
-  createDB <$> builtins <*>  pure ["false","fail"]
+  DB.insertProgram Nothing <$> builtins <*>  pure DB.empty
