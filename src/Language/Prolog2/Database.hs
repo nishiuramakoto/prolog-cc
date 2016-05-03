@@ -89,10 +89,11 @@ insertProgram mod clauses (DB gr ut st) = DB gr ut' st
           clauses
 
 getClauses :: ModuleName -> Term -> Database state m -> [Clause]
-getClauses mod term (DB _ ut _) =
+getClauses mod term (DB gr ut _) =
   let c0 = Map.lookup (Nothing , signature term) ut
       c  = Map.lookup (Just mod, signature term) ut
-      d  = getFirst $ First c0 `mappend` First c
+      cs = map (\n -> Map.lookup (Just n, signature term) ut) (NG.suc mod gr)
+      d  = getFirst $ foldl1 mappend (map First $ [c0, c ] ++ cs)
   in maybe [] id d
 
 

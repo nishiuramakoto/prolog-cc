@@ -3,13 +3,14 @@ module Language.Prolog2.NamedGraph
        ( NamedGraph(..)
        , empty
        , merge
+       , suc
        ) where
 
 #ifdef YESOD
 import Prelude
 #endif
 
-import Data.Graph.Inductive.Graph hiding (empty)
+import Data.Graph.Inductive.Graph hiding (empty,suc)
 import qualified Data.Graph.Inductive.Graph  as Graph
 import Data.Graph.Inductive.PatriciaTree(Gr)
 import Data.Map(Map)
@@ -66,3 +67,9 @@ unionGraph gr1 gr2 = ufold mergeContext gr2 gr1
 
     unionAdj :: Adj () -> Adj () -> Adj ()
     unionAdj as bs =  nub (as ++ bs)
+
+suc :: Ord a => a -> NamedGraph a -> [a]
+suc x (NamedGraph gr m) =
+  let mnode = Map.lookup x m
+      msucc = Graph.suc gr <$> mnode
+  in mapMaybe (Graph.lab gr) $ maybe [] id msucc
