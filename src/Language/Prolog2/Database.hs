@@ -6,19 +6,20 @@
 
 module Language.Prolog2.Database
    ( insertProgram
-   , insertSystemProgram
+   , insertClause
    , empty
    , size
+   , merge
    , hasUserPredicate
-   , hasSystemPredicate
    , getClauses
-   , getSystemClause
+   , setPublicTable
+   , isPublic
+   , Signature(..), signature
+   , Database
+   , dbUserTable
    , asserta
    , assertz
    , abolish
-   , Signature(..), signature
-   , Database
-   , dbUserTable , dbSystemTable
    )
 where
 
@@ -29,6 +30,8 @@ import Prelude
 
 import Data.Map (Map)
 import qualified Data.Map as Map
+import Data.Set (Set)
+import qualified Data.Set as Set
 import Data.Text(Text)
 import qualified Data.Text as T
 import Data.Monoid
@@ -47,48 +50,57 @@ signature (UTerm (TStruct name ts)) =  Just (Signature name (length ts))
 signature  _  = Nothing
 
 
-type UserTable            = Map (Maybe ModuleName, Maybe Signature) [Clause]
-type SystemTable state m  = Map (Maybe Signature) (ClauseM state m)
-data Database state m  = DB { dbModuleGraph :: NamedGraph ModuleName
-                            , dbUserTable   :: UserTable
-                            , dbSystemTable :: SystemTable state m
-                            }
+type UserTable            = Map (Maybe ModuleName, Maybe Signature) ([Clause])
+type PublicTable          = Set (Maybe ModuleName, Maybe Signature)
 
-empty :: Database state m
-empty = DB  NG.empty  initialUT  Map.empty
+data Database   = DB { dbModuleGraph :: NamedGraph ModuleName
+                     , dbUserTable   :: UserTable
+                     , dbPublicTable :: PublicTable
+                     }
+
+merge :: Database -> Database  -> Database
+merge (DB gr1 ut1 pt1) (DB gr2 ut2 pt2) = DB
+                                          (NG.merge gr1 gr2)
+                                          (mergeUT ut1 ut2)
+                                          (mergePT pt1 pt2)
+  where
+    mergeUT = Map.unionWith (++)
+    mergePT = Set.union
+
+
+empty :: Database
+empty = DB  NG.empty  initialUT  Set.empty
   where
     initialUT = Map.fromList [ ((Nothing, signature (UTerm (TStruct name []))), [])
                              | name <- emptyPredicates ]
     emptyPredicates = [ "false" , "fail" ]
 
-size :: Database state m -> Int
-size (DB _ ut st) = Map.size ut + Map.size st
+size :: Database -> Int
+size (DB _ ut _) = Map.size ut
 
-hasUserPredicate :: ModuleName -> Signature -> Database state m -> Bool
-hasUserPredicate mod sig (DB _ ut _) = Map.member  (Just mod, Just sig) ut
+setPublicTable :: ModuleName -> [ Signature ] -> Database -> Database
+setPublicTable mod ss db = db { dbPublicTable = Set.fromList (zip (repeat (Just mod)) (map Just ss)) }
 
-hasSystemPredicate :: Signature -> Database state m -> Bool
-hasSystemPredicate sig (DB _ _ st) = Map.member (Just sig) st
+isPublic :: Maybe ModuleName -> Maybe Signature -> Database -> Bool
+isPublic mod s db = Set.member (mod,s) (dbPublicTable db)
 
-insertClause :: ModuleName -> Clause -> Database state m -> Database state m
+hasUserPredicate :: ModuleName -> Signature -> Database -> Bool
+hasUserPredicate mod sig db = Map.member  (Just mod, Just sig) (dbUserTable db)
+
+
+insertClause :: ModuleName -> Clause -> Database  -> Database
 insertClause mod clause db = db { dbUserTable = update $ dbUserTable db }
   where update map = Map.insertWith' (++) (Just mod, signature (lhs clause)) [clause] map
 
-insertSystemProgram :: Monad m => [ (UClauseM state m Term) ] -> Database state m  -> Database state m
-insertSystemProgram clauses db =  db { dbSystemTable = update $ dbSystemTable db }
-  where update st =
-          foldr (\clause  -> Map.insert (signature (lhsM clause)) clause)
-          st
-          clauses
 
-insertProgram :: Foldable t => Maybe ModuleName -> t (UClause Term) -> Database state m -> Database state m
-insertProgram mod clauses (DB gr ut st) = DB gr ut' st
+insertProgram :: Foldable t => Maybe ModuleName -> t (UClause Term) -> Database -> Database
+insertProgram mod clauses db = db { dbUserTable = ut' }
   where
     ut' = foldr (\clause  -> Map.insertWith' (++) (mod, signature (lhs clause)) [clause])
-          ut
+          (dbUserTable db)
           clauses
 
-getClauses :: ModuleName -> Term -> Database state m -> [Clause]
+getClauses :: ModuleName -> Term -> Database -> [Clause]
 getClauses mod term (DB gr ut _) =
   let c0 = Map.lookup (Nothing , signature term) ut
       c  = Map.lookup (Just mod, signature term) ut
@@ -97,19 +109,16 @@ getClauses mod term (DB gr ut _) =
   in maybe [] id d
 
 
-getSystemClause :: Term -> Database state m -> Maybe (ClauseM state m)
-getSystemClause term (DB _ _ st) = Map.lookup (signature term) st
-
-asserta :: ModuleName -> Term -> Database state m  -> Database state m
+asserta :: ModuleName -> Term -> Database -> Database
 asserta mod fact db = db { dbUserTable = update $ dbUserTable db }
   where update ut = Map.insertWith (++)  (Just mod,signature fact) [UClause fact []] ut
 
-assertz :: ModuleName -> Term -> Database state m  -> Database state m
+assertz :: ModuleName -> Term -> Database -> Database
 assertz mod fact db = db { dbUserTable = update $ dbUserTable db }
   where update ut = Map.insertWith (flip (++))  (Just mod,signature fact) [UClause fact []] ut
 
 
-abolish :: ModuleName -> Term -> Database state m -> Database state m
+abolish :: ModuleName -> Term -> Database -> Database
 abolish mod fact db = db { dbUserTable = update $ dbUserTable db }
   where update ut =  Map.adjust deleteFact (Just mod,signature fact) ut
         deleteFact (UClause t []:cs) | t == fact = cs

@@ -20,8 +20,9 @@ import Import.NoFoundation hiding(cons,trace,mapM_,sort,get, maximum)
 #endif
 
 
-import             Language.Prolog2.Database
 import             Language.Prolog2.Syntax
+import             Language.Prolog2.Database
+import             Language.Prolog2.SystemDatabase
 
 import             Control.Monad.Reader
 import             Control.Monad.State
@@ -49,12 +50,12 @@ newtype PrologT m a = PrologT { unPrologT :: ExceptT RuntimeError (IntBindingT T
                                  , MonadState (IntBindingState T)
                                  , MonadError RuntimeError
                                  )
-newtype PrologDatabaseT state n m a =
-  PrologDatabaseT { unPrologDatabaseT :: ReaderT (Database state n)  (PrologT m) a }
+newtype PrologDatabaseT m a =
+  PrologDatabaseT { unPrologDatabaseT :: ReaderT Database  (PrologT m) a }
   deriving (Functor
            , Applicative
            , Monad
-           , MonadReader (Database state n)
+           , MonadReader  Database
            , MonadState  (IntBindingState T)
            , MonadError  RuntimeError
            )
@@ -65,13 +66,14 @@ class  MonadProlog t  where
 instance MonadProlog PrologT  where
   liftProlog = id
 
-instance MonadProlog (PrologDatabaseT state n)  where
+instance MonadProlog PrologDatabaseT  where
   liftProlog = PrologDatabaseT . lift
 
-class (MonadProlog t, Monad n, Monad m) => MonadPrologDatabase t state n m  where
-  liftPrologDatabase :: PrologDatabaseT state n m a -> t m a
 
-instance (Monad n, Monad m)  => MonadPrologDatabase (PrologDatabaseT state n) state n m  where
+class (MonadProlog t, Monad m) => MonadPrologDatabase t m  where
+  liftPrologDatabase :: PrologDatabaseT m a -> t m a
+
+instance (Monad m)  => MonadPrologDatabase PrologDatabaseT  m  where
   liftPrologDatabase = id
 
 instance MonadIO m => MonadIO (IntBindingT T m) where
@@ -83,11 +85,11 @@ instance MonadTrans PrologT where
 instance MonadIO m => MonadIO (PrologT m) where
   liftIO = lift . liftIO
 
-instance MonadTrans (PrologDatabaseT state n) where
+instance MonadTrans PrologDatabaseT  where
   lift  m =  PrologDatabaseT (lift $ lift m)
 
 
-instance MonadIO m => MonadIO (PrologDatabaseT state n m) where
+instance MonadIO m => MonadIO (PrologDatabaseT m) where
   liftIO = lift . liftIO
 
 
@@ -101,15 +103,15 @@ evalPrologT = evalIntBindingT . runExceptT . unPrologT
 execPrologT :: Monad m => PrologT m a -> m (IntBindingState T)
 execPrologT = execIntBindingT . runExceptT . unPrologT
 
-runPrologDatabaseT :: Monad m => PrologDatabaseT state n m a -> Database state n
+runPrologDatabaseT :: Monad m => PrologDatabaseT m a -> Database
                       -> m (Either RuntimeError a, IntBindingState T)
 runPrologDatabaseT p d = runPrologT $ runReaderT (unPrologDatabaseT p) d
 
-evalPrologDatabaseT :: Monad m => PrologDatabaseT  state n m a -> Database  state n
+evalPrologDatabaseT :: Monad m => PrologDatabaseT m a -> Database
                        -> m (Either RuntimeError a)
 evalPrologDatabaseT p d = evalPrologT $ runReaderT (unPrologDatabaseT p) d
 
-execPrologDatabaseT :: Monad m => PrologDatabaseT  state n m a -> Database state n
+execPrologDatabaseT :: Monad m => PrologDatabaseT m a -> Database
                        -> m (IntBindingState T)
 execPrologDatabaseT p d = execPrologT $ runReaderT (unPrologDatabaseT p) d
 

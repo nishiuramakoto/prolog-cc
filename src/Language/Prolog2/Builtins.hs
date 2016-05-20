@@ -61,6 +61,6 @@ builtins = do
 
 
 
-createBuiltinDatabase :: Monad m => PrologT m (Database state n)
+createBuiltinDatabase :: Monad m => PrologT m Database
 createBuiltinDatabase = do
   DB.insertProgram Nothing <$> builtins <*>  pure DB.empty

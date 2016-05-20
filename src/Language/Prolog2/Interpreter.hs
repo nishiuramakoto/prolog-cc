@@ -48,6 +48,7 @@ import Language.Prolog2.Types
 import Language.Prolog2.Syntax
 import Language.Prolog2.Database(Database)
 import qualified Language.Prolog2.Database as DB
+import Language.Prolog2.SystemDatabase
 import Language.Prolog2.InterpreterCommon
 import Language.Prolog2.Builtins
 

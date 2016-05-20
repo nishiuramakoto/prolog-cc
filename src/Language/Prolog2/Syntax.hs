@@ -17,14 +17,15 @@ module Language.Prolog2.Syntax
    , UClauseList(..)
    , Goal, Program, Atom
    , atom, cut
-   , hierarchy
+   , defaultHierarchy
    , Operator(..)
    , arguments
    , foldr_pl
    , cons, nil
    , everywhere'
    , ppTerm , ppClause , ppProgram
-   , Stack, Branch , Resolver , UClauseM(..), ClauseM,  ModuleName
+   , InfixAssoc(..), PrefixAssoc(..), PostfixAssoc(..)
+   , ModuleName
    )
 where
 
@@ -98,17 +99,8 @@ newtype UClauseList  t = UClauseList [UClause t]
 type Clause = UClause  Term
 
 
-type Stack = [(IntBindingState T, [Goal], [Branch])]
-type Branch = (IntBindingState T, [Goal])
 
 type ModuleName = Atom
-
-type Resolver state m = state -> ModuleName -> Int -> Int -> IntBindingState T -> [Goal] -> Stack
-                         -> m [IntBindingState T]
-data UClauseM state  m  t = UClauseM  { lhsM :: t , rhsM :: Resolver state m -> Resolver state m }
-
-type ClauseM state  m  = UClauseM state m Term
-
 
 
 atom :: Text -> UTerm T v
@@ -200,8 +192,8 @@ data Operator = InfixOp InfixAssoc Text
               | PostfixOp PostfixAssoc Text
 
 
-hierarchy :: Bool -> [(Int, [Operator])]
-hierarchy ignoreConjunction =
+defaultHierarchy :: Bool -> [(Int, [Operator])]
+defaultHierarchy ignoreConjunction =
   [ (1200, map xfx [":-" , "-->" ])
   , (1200, map fx  [":-" , "?-" ])
   , (1100, map xfy [";" ])
