@@ -1,0 +1,372 @@
+diff --git a/src/Language/Prolog2/Database.hs b/src/Language/Prolog2/Database.hs
+index c11c674..f6b91dc 100644
+--- a/src/Language/Prolog2/Database.hs
++++ b/src/Language/Prolog2/Database.hs
+@@ -47,12 +47,14 @@ signature (UTerm (TStruct name ts)) =  Just (Signature name (length ts))
+ signature  _  = Nothing
+ 
+ 
+-type UserTable            = Map (Maybe ModuleName, Maybe Signature) [Clause]
++type UserTable            = Map (Maybe ModuleName, Maybe Signature) ([Clause])
++type PublicTable          = Set (Maybe ModuleName, Maybe Signature)
+ type SystemTable state m  = Map (Maybe Signature) (ClauseM state m)
+-data Database state m  = DB { dbModuleGraph :: NamedGraph ModuleName
+-                            , dbUserTable   :: UserTable
+-                            , dbSystemTable :: SystemTable state m
+-                            }
++data Database state m     = DB { dbModuleGraph :: NamedGraph ModuleName
++                               , dbUserTable   :: UserTable
++                               , dbSystemTable :: SystemTable state m
++                               , dbPublicTable :: PublicTable
++                               }
+ 
+ empty :: Database state m
+ empty = DB  NG.empty  initialUT  Map.empty
+diff --git a/src/Language/Prolog2/Parser.hs b/src/Language/Prolog2/Parser.hs
+index d7e1cfd..7fcce54 100644
+--- a/src/Language/Prolog2/Parser.hs
++++ b/src/Language/Prolog2/Parser.hs
+@@ -36,31 +36,59 @@ consult source = do exists <- liftIO $ doesFileExist source
+                       then do  s <- liftIO $ readFile source
+                                runParserT p emptyState source s
+                       else return $ Left $ fileDoesNoExist source
+-  where p = (whitespace >> program <* eof)
++  where p = (whiteSpace >> program <* eof)
+         fileDoesNoExist file = P.newErrorMessage (P.Message "File does not exist") (P.newPos file 0 0)
+ 
+ consultString :: (Functor m, Applicative m, Monad m) => String -> PrologT m (Either ParseError Program)
+ consultString s = runParserT p emptyState "(input)" s
+-  where p = (whitespace >> program <* eof)
++  where p = (whiteSpace >> program <* eof)
+ 
+ parseQuery :: (Functor m, Applicative m, Monad m) => String -> PrologT m (Either ParseError [Term])
+ parseQuery s = runParserT p  emptyState "(query)" s
+   where p = (whitespace >> terms <* eof)
++
++isOperator :: String -> Bool
++isOperator = runParser (operator >> eof) () ""
++
++isIdentifier :: String -> Bool
++isIdentifier = runParser (identifier >> eof) () ""
++
+ ------------------------  Individual parsers  ------------------------
+ program :: (Functor m, Applicative m, Monad m) => Parser m Program
+-program = many (clause <* char '.' <* whitespace)
++program = many ( (directive <|> clause >>= insertDatabase ) <* char '.' <* whitespace)
+ 
+-whitespace :: (Functor m, Applicative m, Monad m) => Parser m ()
+-whitespace = skipMany (try comment <|> skip space <?> "")
+ 
+-comment :: (Functor m, Applicative m, Monad m) => Parser m ()
+-comment = skip $ choice
+-          [ string "/*" >> (manyTill anyChar $ try $ string "*/")
+-          , char '%' >> (manyTill anyChar $ try $ skip newline <|> eof)
+-          ]
++directive :: Monad m => Parser m ()
++directive = do _ <- string ":-" <* whitespace
++               moduleDirective <|> useModuleDirective <|> opDirective
++
++moduleDirective :: Monad m => Parser m ()
++moduleDirective = do reserved "module"
++                     name <- parens atom
++                     comma
++                     sigs <- publicList
++                     defineModule name sigs
++
++publicList :: Monad m => Parser [Signature]
++publicList = do list $ do name <- atom
++                          reservedOp "/"
++                          arity <- decimal
++                          return $ Signature name arity
++
++
++useModuleDirective :: Monad m => Parser m ()
++useModuleDirective = do reserved "use_module"
++                        file <- parens term
++                        useModule file
++
++opDirective :: Monad m => Parser m ()
++opDirective = do parens $ do priority   <- integer
++                             comma
++                             assoc      <- associativity
++                             comma
++                             name       <- atom
++                             defineOperator priority assoc name
+ 
+-skip :: (Functor m, Applicative m, Monad m) => Parser m a -> Parser m ()
+-skip = (>> return ())
+ 
+ clause :: (Functor m, Applicative m, Monad m) => Parser m Clause
+ clause = do resetState
+@@ -114,20 +142,17 @@ termWithoutConjunction = term' True
+ 
+ 
+ term' :: (Monad m) => Bool -> Parser m Term
+-term' ignoreConjunction = P.Prolog.buildExpressionParser
+-                          (map f $ hierarchy ignoreConjunction)
+-                          (bottom <* whitespace)
+-  where -- f :: (Int, [Operator] ) -> (Int , [ P.Prolog.Operator ])
+-    f (n, ops) = (n, map toParser ops)
++term' ignoreConjunction = expressionParser <$> getState <*> pure ignoreConjunction
+ 
+ bottom :: (Functor m, Applicative m, Monad m) => Parser m Term
+-bottom = variable
+-      <|> struct
+-      <|> list
+-      <|> stringLiteral
+-      <|> cut <$ char '!'
+-      <|> ((UTerm . TStruct (T.pack "{}"))  <$> between (charWs '{') (char '}') terms)
+-      <|> between (charWs '(') (char ')') term
++bottom = lexeme $
++         variable
++         <|> struct
++         <|> list
++         <|> stringLiteral
++         <|> cut <$ char '!'
++         <|> ((UTerm . TStruct (T.pack "{}"))  <$> between (charWs '{') (char '}') terms)
++         <|> between (charWs '(') (char ')') term
+ 
+ toParser :: (Monad m)
+             => Prolog.Operator -> P.Prolog.Operator String (ParserState (PrologT m)) (PrologT m) Term
+@@ -141,6 +166,23 @@ toParser (InfixOp assoc name)   = P.Prolog.Infix ( do reservedOp (T.unpack name)
+                                                       return (\t1 t2 -> UTerm (TStruct name [t1, t2]))) assoc
+ 
+ 
++
++struct :: (Functor m, Applicative m, Monad m) => Parser m Term
++struct = do a <- atom
++            ts <- option [] $ between (charWs '(') (char ')') terms
++            return (UTerm (TStruct (T.pack a) ts))
++
++list :: (Functor m, Applicative m, Monad m) => Parser m Term
++list = between (charWs '[') (char ']') $
++         flip (foldr cons) <$> option []  terms
++                           <*> option nil (charWs '|' >> term)
++
++
++-- Prolog token definitions
++operatorNames :: [String]
++operatorNames = [ ";", ",", "<", "=..", "=:=", "=<", "=", ">=", ">", "\\="
++                , "is", "/" , "*", "+", "-", "\\", "mod", "\\+" ]
++
+ type PrologLanguageDef m = P.GenLanguageDef String (ParserState m)  m
+ 
+ genPrologDef   :: (Functor m, Applicative m, Monad m) => PrologLanguageDef m
+@@ -149,43 +191,42 @@ genPrologDef    = P.LanguageDef
+                , P.commentEnd     = "*/"
+                , P.commentLine    = "%"
+                , P.nestedComments = False
+-               , P.identStart     = letter <|> char '_'
+-               , P.identLetter    = alphaNum <|> oneOf "_'"
+-               , P.opStart        = oneOf ";,<=>\\i*+m@"
+-               , P.opLetter       = oneOf "=.:<+/>"
++               , P.identStart     = alphaNonUpper
++               , P.identLetter    = alphaNum <|> char "_"
++               , P.opStart        = oneOf "#$&*+-./:<=>?@^~\\"
++               , P.opLetter       = oneOf "#$&*+-./:<=>?@^~\\"
+                , P.reservedOpNames= operatorNames
+-               , P.reservedNames  = []
++               , P.reservedNames  = ["module", "use_module", "op"]
+                , P.caseSensitive  = True
+                }
+ 
++lexer = P.makeTokenParser $ genPrologDef
++lexeme = P.lexeme lexer
++whiteSpace = P.whiteSpace lexer
++
+ reservedOp :: (Monad m) => String -> Parser m ()
+-reservedOp = P.reservedOp $ P.makeTokenParser $ genPrologDef
++reservedOp = P.reservedOp lexer
+ 
+--- reservedOp = P.reservedOp $ P.makeTokenParser $ emptyDef
+---    { P.opStart = oneOf ";,<=>\\i*+m@"
+---    , P.opLetter = oneOf "=.:<+"
+---    , P.reservedOpNames = operatorNames
+---    , P.caseSensitive = True
+---    }
++skip :: (Monad m) => Parser m a -> Parser m ()
++skip = (>> return ())
+ 
+-charWs :: (Functor m, Applicative m, Monad m) => Char -> Parser m Char
+-charWs c = char c <* whitespace
+ 
+-operatorNames :: [String]
+-operatorNames = [ ";", ",", "<", "=..", "=:=", "=<", "=", ">=", ">", "\\=", "is", "/" , "*", "+", "-", "\\", "mod", "\\+" ]
++charWs :: (Monad m) => Char -> Parser m Char
++charWs c = lexeme (char c)
++
+ 
+-variable :: (Functor m, Applicative m, Monad m) => Parser m Term
+-variable = (do _ <- try (char '_' <* notFollowedBy (alphaNum <|> char '_'))
+-               wildcard)
+-       <|> var =<< vname
+-       <?> "variable"
++variable :: (Monad m) => Parser m Term
++variable = lexeme (do _ <- try (char '_' <* notFollowedBy (alphaNum <|> char '_'))
++                      wildcard)
++           <|> var =<< vname
++           <?> "variable"
+ 
+-wildcard :: (Functor m, Applicative m, Monad m) => Parser m Term
++wildcard :: (Monad m) => Parser m Term
+ wildcard  = do v <- lift $ getFreeVar
+                insertWildcard "_" v
+                return v
+ 
+-var :: (Functor m, Applicative m, Monad m) => String -> Parser m Term
++var :: (Monad m) => String -> Parser m Term
+ var v = do mx <- lookupVarMap v
+            case mx of
+              Just x  -> return x
+@@ -193,32 +234,23 @@ var v = do mx <- lookupVarMap v
+                            insertVarMap v x
+                            return x
+ 
+-vname :: (Functor m, Applicative m, Monad m) => Parser m String
+-vname = ((:) <$> upper    <*> many  (alphaNum <|> char '_') <|>
+-         (:) <$> char '_' <*> many1 (alphaNum <|> char '_'))
++vname :: (Monad m) => Parser m String
++vname = lexeme (((:) <$> upper    <*> many  (alphaNum <|> char '_') <|>
++                 (:) <$> char '_' <*> many1 (alphaNum <|> char '_')))
+ 
+-atom :: (Functor m, Applicative m, Monad m) => Parser m String
+-atom = (:) <$> lowerNonUpper <*> many (alphaNum <|> char '_')
+-   <|> many1 digit
+-   <|> choice (map string operatorNames)
+-   <|> many1 (oneOf "#$&*+/.<=>\\^~")
++atom :: (Functor m, Applicative m, Monad m) => Parser m Atom
++atom = identifier
++   <|> natural >>= return . show
++   <|> reservedOp
++   <|> operator
+    <|> between (char '\'') (char '\'') (many (noneOf "'"))
+    <?> "atom"
+ 
+-lowerNonUpper :: (Functor m, Applicative m, Monad m) => Parser m Char
+-lowerNonUpper = satisfy (\c -> isAlpha c && not (isUpper c))
++alphaNonUpper :: (Monad m) => Parser m Char
++alphaNonUpper = satisfy (\c -> isAlpha c && not (isUpper c))
+ 
+-struct :: (Functor m, Applicative m, Monad m) => Parser m Term
+-struct = do a <- atom
+-            ts <- option [] $ between (charWs '(') (char ')') terms
+-            return (UTerm (TStruct (T.pack a) ts))
+ 
+-list :: (Functor m, Applicative m, Monad m) => Parser m Term
+-list = between (charWs '[') (char ']') $
+-         flip (foldr cons) <$> option []  terms
+-                           <*> option nil (charWs '|' >> term)
+-
+-stringLiteral :: (Functor m, Applicative m, Monad m) => Parser m Term
++stringLiteral :: (Monad m) => Parser m Term
+ stringLiteral = foldr cons nil . map representChar <$> between (char '"') (char '"') (try (many (noneOf "\"")))
+ 
+ representChar :: Char -> Term
+@@ -232,20 +264,41 @@ representChar c = UTerm (TStruct (T.pack (show (fromEnum c))) []) -- This is the
+ 
+ ----------------------------  User state  ----------------------------
+ data ParserState m  = ParserState
+-                      { varMap    :: Map String Term
+-                      , wildcards :: [(String, Term)]
+-                      , operatorTable :: P.Prolog.OperatorTable String (ParserState m) m Term
+-                      , expressionParser :: ParsecT String (ParserState m) m Term
++                      { moduleFileName    :: Maybe Atom
++                      , moduleName  :: Maybe Atom
++                      , varMap      :: Map String Term
++                      , wildcards   :: [(String, Term)]
++                      , operatorTable    :: Bool -> P.Prolog.OperatorTable String (ParserState m) m Term
++                      , expressionParser :: Bool -> ParsecT String (ParserState m) m Term
++                      , database :: Database
+                       }
+ 
+ emptyState :: Monad m => ParserState m
+-emptyState = ParserState { varMap = Map.empty
+-                         , wildcards = []
+-                         , operatorTable = [(0,[])]
+-                         , expressionParser = fail "no operator defined" }
++emptyState = ParserState
++             { moduleName = Nothing
++             , varMap = Map.empty
++             , wildcards = []
++             , operatorTable ignoreConjunction  =  toExpressionTable $ defaultHierarchy ignoreConjunction
++             , expressionParser ignoreConjunction =
++               P.Prolog.buildExpressionParser (operatorTable ignoreConjunction) bottom
++             , database = DB.empty
++                         }
++toExpressionTable :: [(Int, [Operator])] -> P.Prolog.OperatorTable s u m a
++toExpressionTable table = map toPrologOperators table
++  where
++    toPrologOperators :: (Int, [Operator]) -> (Int, [P.Prolog.Operator s u m a])
++    toPrologOperators (prio, ops) = (prio, map toPrologOperator ops)
++toPrologOperator :: Operator -> P.Prolog.Operator s u m a
++toPrologOperator (InfixOp  assoc text) | isOperator   text = Infix  (reservedOp text binary) assoc
++                                       | isIdentifier text = Infix  (reserved   text binary) assoc
++toPrologOperator (PrefixOp assoc text) | isOperator   text = Prefix (reservedOp text unary) assoc
++                                       | isIdentifier text = Prefix (reserved   text unary) assoc
++toPrologOperator (PostfixOp assoc text) | isOperator   text = Postfix (reservedOp text unary) assoc
++                                        | isIdentifier text = Postfix (reserved   text unary) assoc
++
+ 
+ resetState :: (Functor m, Applicative m, Monad m) => Parser m ()
+-resetState = updateState (\_ -> emptyState)
++resetState = updateState (\st  -> st { varMap = Map.empty , wildcards = [] } )
+ 
+ lookupVarMap :: (Functor m, Applicative m, Monad m) => String -> Parser m (Maybe Term)
+ lookupVarMap v = do
+@@ -263,3 +316,41 @@ insertWildcard v x = do
+   ParserState vmap wild_ op expr <- getState
+   let wildcards' = (v,x) : wild_
+   setState $ ParserState vmap wildcards' op expr
++
++setFileName :: Monad m => Atom -> Parser m ()
++setFileName name = do
++  st <- getState
++  setState st { moduleFileName = Just name }
++
++defineModule :: Monad m => Atom -> [ Signature ] -> Parser m ()
++defineModule mod ss = do
++  st <- getState
++  setState st { moduleName = Just mod
++              , exportTable = ss }
++
++useModule :: Monad m => Atom -> Parser m ()
++useModule mod = do
++  db <- runProlog $ consultDBFS mod
++  st <- getState
++  setState st { database = mergeDB db (database st) }
++
++defineOperator :: Int -> Assoc -> Atom -> Parser m ()
++defineOperator prio assoc atom = do
++  st <- getState
++  let table = insertOp prio assoc atom (operatorTable st)
++  setState st { operatorTable = table
++              , expressionParser ignoreConjunction =
++                P.Prolog.buildExpressionParser (table ignoreConjunction) bottom }
++
++insertOp  :: Int -> Operator
++             -> (Bool -> P.Prolog.OperatorTable String (ParserState m) m Term)
++             -> (Bool -> P.Prolog.OperatorTable String (ParserState m) m Term)
++insertOp prio op table ignoreConjunction = insert (toPrologOperator op) (table ignoreConjunction)
++  where
++    insert op t = Map.insertWith (++) prio [op] t
++
++insertClause :: Clause -> Parser m ()
++insertClause clause = do
++  st <- getState
++  let database' = DB.insertClause (moduleName st) clause (database st)
++  setState st { database = database' }
+diff --git a/src/Language/Prolog2/Syntax.hs b/src/Language/Prolog2/Syntax.hs
+index ff13a2e..0d3bddb 100644
+--- a/src/Language/Prolog2/Syntax.hs
++++ b/src/Language/Prolog2/Syntax.hs
+@@ -200,8 +200,8 @@ data Operator = InfixOp InfixAssoc Text
+               | PostfixOp PostfixAssoc Text
+ 
+ 
+-hierarchy :: Bool -> [(Int, [Operator])]
+-hierarchy ignoreConjunction =
++defaultHierarchy :: Bool -> [(Int, [Operator])]
++defaultHierarchy ignoreConjunction =
+   [ (1200, map xfx [":-" , "-->" ])
+   , (1200, map fx  [":-" , "?-" ])
+   , (1100, map xfy [";" ])
