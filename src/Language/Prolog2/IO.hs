@@ -3,21 +3,23 @@ module Language.Prolog2.IO
    , Clause, rhs
    , UClause(..)
    , Atom,  Program, Goal , Failure , RuntimeError, ParseError
-   , PrologT, RunPrologT
+   , ParserState(..)
+   , Database
+   , PrologT
    , runPrologT , execPrologT, evalPrologT
-   , runRunPrologT , createDB
+   , createDB
    , getFreeVar, getFreeVars
    , resolve , resolveToTerms
-   , consult , consultString
+   , consult , consultText
    , parseQuery
-   , term,terms,clause,program,whitespace
+   , term,terms,clause,program,whiteSpace
    , ppTerm, ppClause, ppProgram
    , module Language.Prolog2.InterpreterIO
    , module Language.Prolog2.Types
    )
 where
 
-import Language.Prolog2.Parser
+import Language.Prolog2.ParserIO
 -- import Quote2
 import Language.Prolog2.Types
 import Language.Prolog2.Database

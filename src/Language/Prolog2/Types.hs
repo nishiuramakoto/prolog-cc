@@ -1,3 +1,10 @@
+{-# LANGUAGE
+    TypeFamilies
+  , StandaloneDeriving
+  , CPP
+  #-}
+
+
 module Language.Prolog2.Types
        ( NonUnificationError(..)
        , IntBindingT
@@ -51,29 +58,34 @@ newtype PrologT m a = PrologT { unPrologT :: ExceptT RuntimeError (IntBindingT T
                                  , MonadError RuntimeError
                                  )
 newtype PrologDatabaseT m a =
-  PrologDatabaseT { unPrologDatabaseT :: ReaderT Database  (PrologT m) a }
-  deriving (Functor
+  PrologDatabaseT { unPrologDatabaseT :: ReaderT Database m a }
+  deriving ( Functor
            , Applicative
            , Monad
            , MonadReader  Database
-           , MonadState  (IntBindingState T)
-           , MonadError  RuntimeError
            )
 
-class  MonadProlog t  where
-  liftProlog :: Monad m => PrologT m a -> t m a
-
-instance MonadProlog PrologT  where
-  liftProlog = id
-
-instance MonadProlog PrologDatabaseT  where
-  liftProlog = PrologDatabaseT . lift
+deriving instance (MonadState (IntBindingState T) m) => MonadState (IntBindingState T) (PrologDatabaseT m)
+deriving instance (MonadError RuntimeError m) => MonadError RuntimeError (PrologDatabaseT m)
 
 
-class (MonadProlog t, Monad m) => MonadPrologDatabase t m  where
-  liftPrologDatabase :: PrologDatabaseT m a -> t m a
+class  (MonadTrans t) => MonadPrologTrans t  where
+  liftProlog  :: Monad m => PrologT m a -> t m a
+  liftBinding :: Monad m =>  IntBindingT T m a -> t m a
 
-instance (Monad m)  => MonadPrologDatabase PrologDatabaseT  m  where
+instance Monad m => MonadPrologTrans PrologT  where
+  liftProlog  = id
+  liftBinding = PrologT . lift
+
+instance MonadPrologTrans m => MonadProlog (PrologDatabaseT m)  where
+  liftProlog  = lift . liftProlog
+  liftBinding = lift . liftBinding
+
+class (MonadProlog m, MonadReader Database m)
+      => MonadPrologDatabase m where
+  liftPrologDatabase :: (Monad n, MonadTrans t, t n ~ m) => PrologDatabaseT n a ->  m a
+
+instance Monad m => MonadPrologDatabase (PrologDatabaseT m) where
   liftPrologDatabase = id
 
 instance MonadIO m => MonadIO (IntBindingT T m) where

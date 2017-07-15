@@ -1,5 +1,6 @@
 module Language.Prolog2.SystemDatabase
        ( SystemDatabase
+       , empty
        , insertSystemProgram
        , hasSystemPredicate
        , getSystemClause
@@ -7,11 +8,11 @@ module Language.Prolog2.SystemDatabase
        ) where
 
 #ifdef YESOD
-import Import.NoFoundation hiding(cons,trace,mapM_,sort,get, maximum)
+import Import.NoFoundation hiding(cons,trace,mapM_,sort,get, maximum , empty)
 #endif
 
 import Language.Prolog2.Syntax
-import Language.Prolog2.Database
+import Language.Prolog2.Database hiding (empty)
 import Control.Unification.IntVar
 import qualified Data.Map as Map
 
@@ -26,8 +27,10 @@ data UClauseM state  m  t = UClauseM  { lhsM :: t , rhsM :: Resolver state m -> 
 
 type ClauseM state  m  = UClauseM state m Term
 
-
 newtype SystemDatabase state m  = SysDB (Map (Maybe Signature) (ClauseM state m))
+
+empty :: SystemDatabase state m
+empty = SysDB (Map.empty)
 
 hasSystemPredicate :: Signature -> SystemDatabase state m -> Bool
 hasSystemPredicate sig (SysDB db) = Map.member (Just sig) db

@@ -20,12 +20,12 @@ Flag library-only
 
 Library
   Hs-Source-Dirs:  src , unification-fd-0.10.0.1/src
-  Exposed-modules: Language.Prolog2
-                   Language.Prolog2.Interpreter
+  Exposed-modules: Language.Prolog2.IO
+                   Language.Prolog2.InterpreterIO
                    Language.Prolog2.Database
                    Language.Prolog2.Syntax
                    Language.Prolog2.Trace
-                   Language.Prolog2.Parser
+                   Language.Prolog2.ParserIO
                    -------
                    Control.Monad.State.UnificationExtras
                    Control.Monad.MaybeK
@@ -65,7 +65,10 @@ Library
                 text-regex-replace >= 0.1.1.1,
                 text >= 1.2.2.0,
                 logict >= 0.6.0.2 ,
-                directory
+                directory ,
+                monad-logger >= 0.3.18 ,
+                fgl           >= 5.5.2.3 ,
+                either        >= 4.4.1.1
 
 -- executable bench
 --   main-is: Bench.hs

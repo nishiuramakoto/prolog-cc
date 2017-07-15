@@ -15,12 +15,10 @@
 module Language.Prolog2.InterpreterIO
    ( resolve
    , resolveToTerms
-   , PrologT , RunPrologT , PrologIO
-   , runPrologT , evalPrologT, execPrologT
-   , runRunPrologT, evalRunPrologT, execRunPrologT
+   , PrologT
    , getFreeVar , getFreeVars
    , createDB
-   , IODatabase
+   , createSysDB
    , RuntimeError
    , NonUnificationError(..)
    )  where
@@ -41,7 +39,7 @@ import qualified Data.Text as T
 import Language.Prolog2.Types
 import Language.Prolog2.Syntax
 import qualified Language.Prolog2.Database as DB
-import Language.Prolog2.SystemDatabase
+import qualified Language.Prolog2.SystemDatabase as SysDB
 import Language.Prolog2.InterpreterCommon
 import Language.Prolog2.Types
 import Language.Prolog2.Builtins
@@ -52,54 +50,20 @@ import Control.Monad.Logger
 -------------------------- Monadic Builtins --------------------------
 
 
-newtype RunPrologT m a = RunPrologT {unRunPrologT :: PrologDatabaseT () (RunPrologT m) m a }
-                         deriving ( Functor
-                                  , Applicative
-                                  , Monad
-                                  , MonadReader (DB.Database () (RunPrologT m))
-                                  , MonadState  (IntBindingState T))
-
-runRunPrologT :: Monad m => RunPrologT m a -> IODatabase m -> m (Either RuntimeError a, IntBindingState T)
-runRunPrologT (RunPrologT m) db = runPrologDatabaseT m db
-
-evalRunPrologT :: Monad m => RunPrologT m a -> IODatabase m -> m (Either RuntimeError a)
-evalRunPrologT (RunPrologT m) db = evalPrologDatabaseT m db
-
-execRunPrologT :: Monad m => RunPrologT m a -> IODatabase m -> m (IntBindingState T)
-execRunPrologT (RunPrologT m) db = execPrologDatabaseT m db
-
-
-
-type PrologIO a = RunPrologT (LoggingT IO) a
-
-instance MonadTrans RunPrologT where
-  lift = RunPrologT . lift
-
-instance MonadProlog RunPrologT where
-  liftProlog = RunPrologT . liftProlog
-
-instance Monad m => MonadPrologDatabase RunPrologT () (RunPrologT m) m  where
-  liftPrologDatabase = RunPrologT
-
-instance MonadLogger m => MonadLogger (RunPrologT m)
-
-
-
-type IODatabase m = DB.Database () (RunPrologT m)
-type IOResolver m = Resolver () (RunPrologT m)
+type IOResolver m = SysDB.Resolver () (PrologDatabaseT m)
 
 asserta :: Monad m => IOResolver m -> IOResolver m
-asserta resolver st mod depth nf usf (UTerm (TStruct "asserta" [fact]):gs) stack = do
+asserta resolver st mod depth nf usf (UTerm (TStruct "asserta" [fact]):gs) stack sysdb = do
         nf' <- liftProlog $ countFreeVars [[UClause fact [] ]]
-        local (DB.asserta mod fact) $  resolver st mod depth (max nf nf')  usf gs stack
+        local (DB.asserta mod fact) $  resolver st mod depth (max nf nf')  usf gs stack sysdb
 
 assertz :: Monad m =>IOResolver m -> IOResolver m
-assertz resolver st mod depth nf usf (UTerm (TStruct "asserta" [fact]):gs) stack  = do
+assertz resolver st mod depth nf usf (UTerm (TStruct "asserta" [fact]):gs) stack sysdb  = do
         nf' <- liftProlog $ countFreeVars [[UClause fact [] ]]
-        local (DB.assertz mod fact) $  resolver st mod depth (max nf nf')  usf gs stack
+        local (DB.assertz mod fact) $  resolver st mod depth (max nf nf')  usf gs stack sysdb
 
 retract :: MonadLogger m => IOResolver m -> IOResolver m
-retract resolver st mod depth nf usf (UTerm (TStruct "retract" [t]):gs) stack  = do
+retract resolver st mod depth nf usf (UTerm (TStruct "retract" [t]):gs) stack sysdb  = do
   $logInfo $ T.pack $ "retract:" ++ show t
 
   clauses <- asks (DB.getClauses mod t)
@@ -107,23 +71,27 @@ retract resolver st mod depth nf usf (UTerm (TStruct "retract" [t]):gs) stack  =
   case ts of
     [] -> do $logInfo $ T.pack $ "retract failed:"
              return (fail "retract/1")
-    (fact:_) -> local (DB.abolish mod fact) $ resolver st mod depth nf usf gs stack
+    (fact:_) -> local (DB.abolish mod fact) $ resolver st mod depth nf usf gs stack sysdb
     where
       unifyWith t t' = (t =:= t' >> return True) `catchError` const (return False)
 
 
 
-builtinM :: MonadLogger m => PrologT m [ClauseM () (RunPrologT m)]
+builtinM :: MonadLogger m => PrologT m [SysDB.ClauseM () (PrologDatabaseT m)]
 builtinM = do
   [x,x',x'',query,v]  <- getFreeVars 5
-  return [ UClauseM (UTerm (TStruct "asserta" [x  ])) asserta
-         , UClauseM (UTerm (TStruct "assertz" [x' ])) assertz
-         , UClauseM (UTerm (TStruct "retract" [x''])) retract
+  return [ SysDB.UClauseM (UTerm (TStruct "asserta" [x  ])) asserta
+         , SysDB.UClauseM (UTerm (TStruct "assertz" [x' ])) assertz
+         , SysDB.UClauseM (UTerm (TStruct "retract" [x''])) retract
          ]
 
 
-createDB :: MonadLogger m => PrologT m (IODatabase m)
+createDB :: MonadLogger m => PrologT m DB.Database
 createDB = do
   db <- createBuiltinDatabase
+  return db
+
+createSysDB :: MonadLogger m => PrologT m (SysDB.SystemDatabase () (PrologDatabaseT m))
+createSysDB = do
   ls <- builtinM
-  return $ DB.insertSystemProgram ls db
+  return $ SysDB.insertSystemProgram ls SysDB.empty

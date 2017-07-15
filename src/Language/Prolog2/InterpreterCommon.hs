@@ -34,72 +34,84 @@ import Language.Prolog2.SystemDatabase
 import qualified Language.Prolog2.Database as DB
 
 
-getFreeVar :: (Monad m) =>  m Term
-getFreeVar = (UVar <$> freeVar)
+getFreeVar :: (Monad m, MonadTrans t, MonadProlog (t m) ) => t m Term
+getFreeVar =  liftBinding $ UVar <$> freeVar
 
--- getFreeVar :: (Monad m, MonadProlog t) => t m Term
--- getFreeVar = liftProlog $ PrologT $ lift $ (UVar <$> freeVar)
 
--- getFreeVars ::(Monad m, MonadProlog t) => Int -> t m [Term]
+getFreeVars ::(Monad m, MonadTrans t, MonadProlog (t m) ) => Int -> t m [Term]
 getFreeVars 0 = return []
 getFreeVars 1 = getFreeVar >>= return . return
 getFreeVars n = do x  <- getFreeVar
                    xs <- getFreeVars (n-1)
                    return (x:xs)
 
-
-resolveToTerms ::  forall t state m.
-                   ( MonadPrologDatabase t m
-                   , MonadReader Database (t m)
-                   , MonadState (IntBindingState T) (t m)
-                   , MonadLogger m
-                   , MonadLogger (t m))
-                   => state ->  ModuleName ->  [Goal] -> Database -> SystemDatabase state (t m)
-                   -> t m   [[Term]]
-resolveToTerms st mod goals db sysdb = do
-  db <- ask
+resolveToTerms ::  forall t m state.
+                   ( MonadTrans t
+                   , MonadPrologDatabase (t m)
+                   , MonadError RuntimeError m
+                   , MonadLogger (t m)
+                   )
+                   => state
+                   -> ModuleName
+                   -> [Goal]
+                   -> Database
+                   -> SystemDatabase state (t m)
+                   -> t m  [[Term]]
+resolveToTerms st mod goals db sysdb =  local (\_ -> db) $ do
   -- $(logInfo) $ T.pack $ "resolveToTerms: " ++ show (DB.size db)
 
-  vs <- liftProlog $ PrologT $ lift $ U.getFreeVarsAll goals
-  usfs <- resolve st mod goals db sysdb
+  vs   <- liftProlog $ PrologT $ lift $ U.getFreeVarsAll goals
+  usfs <- resolve st mod goals sysdb
   Prelude.mapM (f (map UVar vs)) usfs
     where
-      f :: [Term] -> IntBindingState T -> t m  [Term]
+      f :: [Term] -> IntBindingState T ->  t m  [Term]
       f vs usf = do put usf
                     liftProlog $ PrologT $ Prelude.mapM applyBindings vs
 
 
 -- Yield all unifiers that resolve <goal> using the clauses from <program>.
-resolve :: ( MonadPrologDatabase t m
-           , MonadReader Database (t m)
-           , MonadState (IntBindingState T) (t m)
-           , MonadLogger m
+resolve :: ( MonadTrans t
+           , MonadPrologDatabase (t m)
+           , MonadError RuntimeError m
            , MonadLogger (t m))
-           => state -> ModuleName ->  [Goal] -> Database -> SystemDatabase state (t m)
+           => state
+           -> ModuleName
+           ->  [Goal]
+           -> SystemDatabase state (t m)
            -> t m  [IntBindingState T]
-resolve st  mod goals db sysdb = do
-  local (\_ -> db) (resolveWithDatabase st mod 1 goals [] sysdb)
+resolve st mod goals sysdb = resolveWithDatabase st mod 1 goals [] sysdb
 
-resolveWithDatabase ::  ( MonadPrologDatabase t m
-                        , MonadReader Database (t m)
-                        , MonadState (IntBindingState T) (t m)
-                        , MonadLogger m
+resolveWithDatabase ::  ( MonadTrans t
+                        , MonadPrologDatabase (t m)
+                        , MonadError RuntimeError m
                         , MonadLogger (t m))
-                        => state -> ModuleName -> Int -> [Goal] -> Stack -> SystemDatabase state (t m)
+                        => state
+                        -> ModuleName
+                        -> Int
+                        -> [Goal]
+                        -> Stack
+                        -> SystemDatabase state (t m)
                         -> t m  [IntBindingState T]
+
 resolveWithDatabase  st mod depth goals stack sysdb = do
   db <- ask
-  usf <- get
   numFreeVars <- liftProlog $ countFreeVars (DB.dbUserTable db)
+
+  usf <- get
   resolve'' st mod depth numFreeVars usf goals stack sysdb
 
 resolve'' :: forall t state m.
-             ( MonadPrologDatabase t m
-             , MonadReader Database (t m)
-             , MonadState (IntBindingState T) (t m)
-             , MonadLogger m
+             ( MonadTrans t
+             , MonadPrologDatabase (t m)
+             , MonadError RuntimeError m
              , MonadLogger (t m) )
-             => state -> ModuleName -> Int -> Int -> IntBindingState T -> [Goal] -> Stack
+             => state
+             -> ModuleName
+             -> Int
+             -> Int
+             -> IntBindingState T
+             -> [Goal]
+             -> Stack
              -> SystemDatabase state (t m)
              -> t m [IntBindingState T]
 
@@ -122,49 +134,59 @@ resolve'' st mod depth nf usf (nextGoal:gs) stack sysdb = do
     Just (UClauseM lhs m) ->
       m resolve'' st mod depth nf usf (nextGoal:gs) stack sysdb
     Nothing -> do
-
-
       put usf
       updateNextFreeVar depth nf
       usf' <- get
-
-      let f = getBranches mod usf' nextGoal gs :: PrologDatabaseT m [Branch]
-      branches <- liftPrologDatabase $ f
-
+      branches <- getBranches mod usf' nextGoal gs
       choose st mod depth nf usf gs branches stack sysdb
 
-choose :: ( MonadPrologDatabase t m
-          , MonadReader Database (t m)
-          , MonadState (IntBindingState T) (t m)
-          , MonadLogger m
+choose :: ( MonadTrans t
+          , MonadPrologDatabase (t m)
+          , MonadError RuntimeError m
           , MonadLogger (t m) )
-          => state -> ModuleName -> Int -> Int -> IntBindingState T -> [Goal] -> [Branch] -> Stack
+          => state
+          -> ModuleName
+          -> Int
+          -> Int
+          -> IntBindingState T
+          -> [Goal]
+          -> [Branch]
+          -> Stack
           -> SystemDatabase state (t m)
-          -> t m   [IntBindingState T]
+          -> t m  [IntBindingState T]
 choose  st mod depth  nf _usf _gs  (_branches@[]) stack sysdb  = backtrack st mod depth nf stack sysdb
 choose  st mod depth  nf usf  gs ((u',gs'):alts)  stack sysdb  =
   resolve'' st mod (succ depth) nf u' gs' ((usf,gs,alts) : stack) sysdb
 
-backtrack :: ( MonadPrologDatabase t  m
-             , MonadReader Database  (t m)
-             , MonadState (IntBindingState T) (t m)
-             , MonadLogger m
+backtrack :: ( MonadTrans t
+             , MonadPrologDatabase (t m)
+             , MonadError RuntimeError m
              , MonadLogger (t m))
-             => state -> ModuleName -> Int -> Int -> Stack
+             => state
+             -> ModuleName
+             -> Int
+             -> Int
+             -> Stack
              -> SystemDatabase state (t m)
              -> t m  [ IntBindingState T ]
 backtrack _  _ _ _ [] _               =  return (fail "Goal cannot be resolved!")
 backtrack st mod depth nf  ((u,gs,alts):stack) sysdb = choose st mod (pred depth) nf  u gs alts stack sysdb
 
 
-
-getBranches ::  (MonadLogger m) => ModuleName -> IntBindingState T -> Goal -> [Goal]
-                -> PrologDatabaseT m [Branch]
+getBranches ::  ( MonadTrans t
+                , MonadPrologDatabase (t m)
+                , MonadError RuntimeError m
+                , MonadLogger (t m)  )
+                => ModuleName
+                -> IntBindingState T
+                -> Goal
+                -> [Goal]
+                -> t m [Branch]
 getBranches  mod usf (UVar n) gs = do
         nextGoal <-  liftProlog $ PrologT $ applyBindings (UVar n)
         case nextGoal of
-          (UVar x) -> throwError $ Right (InstantiationError (UVar x))
-          _        -> getBranches mod usf nextGoal gs
+          UVar x -> lift $ throwError $ Right (InstantiationError (UVar x))
+          _      -> getBranches mod usf nextGoal gs
 
 getBranches  mod usf nextGoal gs = do
 
