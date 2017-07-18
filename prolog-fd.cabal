@@ -1,7 +1,7 @@
 Name:                prolog-fd
 Version:             0.1
-Synopsis:            A Prolog interpreter written in Haskell, optimized using unification-fd.
-License:             PublicDomain
+Synopsis:            A Prolog interpreter monad transformer, optimized using unification-fd.
+License:             GPL-3
 Author:              Matthias Bartsch, Makoto Nishiura
 Maintainer:          nishiuramakoto@gmail.com
 Category:            Language
@@ -10,7 +10,7 @@ Build-type:          Simple
 Cabal-version:       >=1.8
 
 Flag dev
-    Description:   Turn on development settings, like auto-reload templates.
+    Description:   Turn on development settings, like auto-reload templates.nnnnnn
     Default:       False
 
 Flag library-only
