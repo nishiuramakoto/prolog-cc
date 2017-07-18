@@ -8,14 +8,6 @@ all : build-as-yesod
 build-as-yesod:
 	cd .. && stack build
 
-
-set-remote: push
-	git remote set-url origin http://aki23b.ddns.net/git/prolog-fd.git
-
-push :
-	git remote set-url origin /mnt/debian/var/www/git/prolog-fd.git && \
-	git push --all origin
-
 ####################################################################
 
 
